@@ -9,22 +9,21 @@
   --nasa-neon-yellow: #EAFE07;
   --nasa-white: #FFFFFF;
 
-  /* Derived Surface & Border Tokens strictly from the 8 NASA colors */
-  --surface-deep: #07173F;
-  --surface-panel: rgba(0, 66, 166, 0.18);
-  --surface-panel-elevated: rgba(0, 66, 166, 0.30);
-  --surface-header: rgba(7, 23, 63, 0.94);
-  --border-subtle: rgba(46, 150, 245, 0.26);
-  --border-strong: #0042A6;
-  --border-active: #2E96F5;
-  --text-primary: #FFFFFF;
-  --text-secondary: rgba(255, 255, 255, 0.78);
-  --text-muted: rgba(255, 255, 255, 0.58);
+  /* Base Light / White Theme Tokens + NASA Accent Tokens */
+  --bg-page: #F7F9FC;
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #F0F4FA;
+  --bg-accent-tint: #EAF2FE;
+  --border-light: #DCE5F2;
+  --border-medium: #C2D3EC;
+  --text-primary: #07173F;
+  --text-secondary: #334873;
+  --text-muted: #5E7196;
 
   font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto,
     sans-serif;
-  color: var(--nasa-white);
-  background-color: var(--nasa-deep-blue);
+  color: var(--text-primary);
+  background-color: var(--bg-page);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -39,8 +38,8 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--nasa-deep-blue);
-  color: var(--nasa-white);
+  background-color: var(--bg-page);
+  color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
 }
