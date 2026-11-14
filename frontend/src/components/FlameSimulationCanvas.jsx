@@ -1,626 +1,689 @@
 import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
 import { NASA_PALETTE } from "../theme/nasaPalette";
 
 /**
- * Interactive 2D Physics-Based Microgravity Combustion & Airflow Simulator
- * Visualizes flame morphology (spherical 0g diffusion vs fan-driven elongated plume
- * vs partial-gravity buoyant plume vs hypoxic quenching) using the official NASA palette.
+ * Vertex Shader for 3D Microgravity & Partial-Gravity Flame Morphology
+ * Dynamically morphs a high-resolution sphere into:
+ * - A spherical diffusion flame in quiescent 0g (low airflow, 0g)
+ * - An elongated forced-convection plume along X (airflowCmS)
+ * - An upward-curved buoyant plume along Y (gravityG)
  */
+const FLAME_VERTEX_SHADER = `
+  uniform float uTime;
+  uniform float uStretchX;
+  uniform float uBuoyancyY;
+  uniform float uScale;
+  uniform float uTurbulence;
+  varying vec3 vNormal;
+  varying vec3 vViewPosition;
+  varying vec3 vLocalPos;
+  varying float vAxialProgress;
+
+  void main() {
+    vLocalPos = position;
+    vec3 pos = position * uScale;
+
+    // Determine downstream factor (how far towards the flame tail this vertex is)
+    float flowDir = sign(uStretchX == 0.0 ? 1.0 : uStretchX);
+    float downstream = clamp((position.x * flowDir + 1.0) * 0.5, 0.0, 1.0);
+    float topFactor = clamp((position.y + 1.0) * 0.5, 0.0, 1.0);
+    float tailWeight = max(downstream * abs(uStretchX) * 0.45, topFactor * uBuoyancyY * 0.55);
+    vAxialProgress = clamp(downstream * 0.75 + topFactor * 0.35, 0.0, 1.0);
+
+    // Taper tail into a realistic aerodynamic flame tip
+    float taper = 1.0 - 0.52 * pow(downstream, 1.4) * clamp(abs(uStretchX) * 0.4, 0.0, 1.0);
+    pos.y *= taper;
+    pos.z *= taper;
+
+    // Stretch along airflow vector (X) and buoyancy vector (Y)
+    pos.x += pow(downstream, 1.25) * uStretchX;
+    pos.y += pow(downstream, 1.35) * uBuoyancyY * 0.65 + pow(topFactor, 1.3) * uBuoyancyY * 0.85;
+
+    // Multi-frequency 3D flame surface instability / flicker
+    float wave1 = sin(uTime * 6.5 - position.x * flowDir * 4.0 + position.y * 3.0);
+    float wave2 = cos(uTime * 9.2 + position.z * 5.0 - position.x * 3.5);
+    float displacement = (wave1 * 0.08 + wave2 * 0.05) * uTurbulence * (0.25 + tailWeight * 0.9);
+
+    pos.y += displacement;
+    pos.z += displacement * 0.7;
+
+    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+    vViewPosition = -mvPosition.xyz;
+    vNormal = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+/**
+ * Fragment Shader mapped strictly to the NASA Color Palette:
+ * - #0960E1 (Neon Blue) & #2E96F5 (Blue Yonder) for 0g chemiluminescent base/halo
+ * - #E43700 (Rocket Red) & #8E1100 (Martian Red) for active reaction front
+ * - #EAFE07 (Neon Yellow) & #FFFFFF (White) for high-temp inner core
+ */
+const FLAME_FRAGMENT_SHADER = `
+  uniform float uTime;
+  uniform float uIntensity;
+  uniform float uIsSpherical0g;
+  uniform float uIsQuenching;
+  uniform float uLayerType; // 0.0 = inner core, 1.0 = outer reaction envelope
+
+  varying vec3 vNormal;
+  varying vec3 vViewPosition;
+  varying vec3 vLocalPos;
+  varying float vAxialProgress;
+
+  void main() {
+    vec3 viewDir = normalize(vViewPosition);
+    float fresnel = 1.0 - abs(dot(viewDir, normalize(vNormal)));
+
+    // Official NASA Palette RGB values normalized
+    vec3 cWhite       = vec3(1.000, 1.000, 1.000); // #FFFFFF
+    vec3 cNeonYellow  = vec3(0.918, 0.996, 0.027); // #EAFE07
+    vec3 cRocketRed   = vec3(0.894, 0.216, 0.000); // #E43700
+    vec3 cMartianRed  = vec3(0.557, 0.067, 0.000); // #8E1100
+    vec3 cBlueYonder  = vec3(0.180, 0.588, 0.961); // #2E96F5
+    vec3 cNeonBlue    = vec3(0.035, 0.376, 0.882); // #0960E1
+
+    vec3 color;
+    float alpha;
+
+    if (uLayerType < 0.5) {
+      // Inner Core Layer
+      if (uIsSpherical0g > 0.5 || uIsQuenching > 0.5) {
+        color = mix(cWhite, cBlueYonder, clamp(fresnel * 1.1, 0.0, 1.0));
+        alpha = (0.78 - fresnel * 0.45) * (uIsQuenching > 0.5 ? 0.55 : 0.9);
+      } else {
+        vec3 hotCore = mix(cWhite, cNeonYellow, clamp(vAxialProgress * 1.1, 0.0, 1.0));
+        color = mix(hotCore, cRocketRed, pow(fresnel, 1.5));
+        alpha = clamp(0.92 - fresnel * 0.5, 0.15, 0.95);
+      }
+    } else {
+      // Outer Reaction & Chemiluminescence Envelope
+      if (uIsSpherical0g > 0.5 || uIsQuenching > 0.5) {
+        color = mix(cBlueYonder, cNeonBlue, clamp(fresnel * 1.2, 0.0, 1.0));
+        alpha = clamp((1.0 - pow(fresnel, 1.8)) * 0.62, 0.08, 0.72) * (uIsQuenching > 0.5 ? 0.5 : 1.0);
+      } else {
+        // Leading edge is Neon Blue / Blue Yonder; downstream wake transitions to Rocket Red & Neon Yellow
+        vec3 baseToWake = mix(cNeonBlue, cRocketRed, smoothstep(0.12, 0.58, vAxialProgress));
+        baseToWake = mix(baseToWake, cMartianRed, smoothstep(0.68, 1.0, vAxialProgress) * 0.5);
+        color = mix(baseToWake, cBlueYonder, (1.0 - vAxialProgress) * fresnel * 0.85);
+        float flicker = 0.92 + 0.08 * sin(uTime * 11.0 + vLocalPos.x * 4.0);
+        alpha = clamp((0.76 - pow(fresnel, 1.6) * 0.58) * flicker * (0.65 + uIntensity * 0.35), 0.05, 0.84);
+      }
+    }
+
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
 export default function FlameSimulationCanvas({
   params,
   riskEvaluation,
-  onUpdateParams,
   onApplyAllRecommendations,
   hasRecommendations,
 }) {
-  const canvasRef = useRef(null);
+  const mountRef = useRef(null);
   const [isRunning, setIsRunning] = useState(true);
-  const [showThermalContours, setShowThermalContours] = useState(true);
-  const [elapsedSimSec, setElapsedSimSec] = useState(0);
+  const [cameraPreset, setCameraPreset] = useState("iso");
 
-  // Particle systems stored in ref for smooth 60fps animation without React re-render lag
-  const simStateRef = useRef({
-    airParticles: [],
-    sootParticles: [],
-    bubbles: [],
-    time: 0,
+  // Keep latest props in a ref so the 60fps Three.js loop always reads fresh telemetry without re-creating the WebGL context
+  const livePropsRef = useRef({ params, riskEvaluation, isRunning });
+  useEffect(() => {
+    livePropsRef.current = { params, riskEvaluation, isRunning };
+  }, [params, riskEvaluation, isRunning]);
+
+  // Camera spherical coordinates for smooth mouse drag orbit + preset switching
+  const cameraOrbitRef = useRef({
+    theta: 0.38,
+    phi: 1.22,
+    radius: 6.2,
+    targetTheta: 0.38,
+    targetPhi: 1.22,
+    targetRadius: 6.2,
+    isDragging: false,
+    lastX: 0,
+    lastY: 0,
   });
 
-  useEffect(() => {
-    // Initialize streamline particles
-    const airParticles = Array.from({ length: 48 }, (_, idx) => ({
-      x: (idx * 23) % 760,
-      y: 34 + ((idx * 37) % 250),
-      length: 12 + (idx % 14),
-      speedFactor: 0.75 + (idx % 5) * 0.12,
-    }));
-
-    const sootParticles = Array.from({ length: 28 }, (_, idx) => ({
-      x: 280 + (idx * 13) % 180,
-      y: 165 + ((idx * 19) % 40) - 20,
-      vx: 1.2,
-      vy: 0,
-      radius: 1.5 + (idx % 3),
-      alpha: 0.2 + (idx % 7) * 0.1,
-      life: (idx * 17) % 100,
-    }));
-
-    const bubbles = Array.from({ length: 10 }, (_, idx) => ({
-      offsetX: -24 + idx * 6,
-      r: 1.5 + (idx % 3),
-      phase: idx * 0.7,
-    }));
-
-    simStateRef.current.airParticles = airParticles;
-    simStateRef.current.sootParticles = sootParticles;
-    simStateRef.current.bubbles = bubbles;
-  }, []);
+  const handleSetCameraView = (view) => {
+    setCameraPreset(view);
+    const orbit = cameraOrbitRef.current;
+    if (view === "iso") {
+      orbit.targetTheta = 0.42;
+      orbit.targetPhi = 1.18;
+      orbit.targetRadius = 6.2;
+    } else if (view === "side") {
+      orbit.targetTheta = 0.0;
+      orbit.targetPhi = Math.PI / 2;
+      orbit.targetRadius = 5.8;
+    } else if (view === "top") {
+      orbit.targetTheta = 0.0;
+      orbit.targetPhi = 0.22;
+      orbit.targetRadius = 6.6;
+    }
+  };
 
   useEffect(() => {
-    if (!isRunning) return;
-    const timer = setInterval(() => {
-      setElapsedSimSec((s) => s + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isRunning]);
+    const container = mountRef.current;
+    if (!container) return;
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    let animationFrameId;
+    const width = container.clientWidth || 720;
+    const height = container.clientHeight || 340;
 
-    const render = () => {
-      const dpr = window.devicePixelRatio || 1;
-      const width = canvas.clientWidth || 720;
-      const height = canvas.clientHeight || 330;
+    // 1. Scene & Deep Blue Space Chamber Backdrop (#07173F)
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(NASA_PALETTE.deepBlue.hex);
+    scene.fog = new THREE.FogExp2(NASA_PALETTE.deepBlue.hex, 0.045);
 
-      if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
-      }
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
 
-      ctx.save();
-      ctx.scale(dpr, dpr);
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: "high-performance",
+    });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    container.innerHTML = "";
+    container.appendChild(renderer.domElement);
 
-      if (isRunning) {
-        simStateRef.current.time += 0.045;
-      }
-      const t = simStateRef.current.time;
+    // 2. Lighting
+    const ambientLight = new THREE.AmbientLight(NASA_PALETTE.blueYonder.hex, 0.9);
+    scene.add(ambientLight);
 
-      const {
-        oxygenPercent,
-        airflowCmS,
-        gravityG,
-        material,
-        flowDirection,
-      } = params;
-      const { probability, flameRegime, metrics } = riskEvaluation;
+    const dirLight = new THREE.DirectionalLight(NASA_PALETTE.white.hex, 1.1);
+    dirLight.position.set(4, 6, 5);
+    scene.add(dirLight);
 
-      const isDroplet = material === "Methanol" || material === "Heptane";
-      const isQuenching =
-        flameRegime === "QUENCHING_STARVATION" || probability < 16;
-      const isBlowoff = flameRegime === "CONVECTIVE_BLOWOFF";
-      const flowSign = flowDirection === "CONCURRENT" ? 1 : -1;
+    const flameLight = new THREE.PointLight(NASA_PALETTE.rocketRed.hex, 2.8, 9);
+    flameLight.position.set(0, 0.2, 0);
+    scene.add(flameLight);
 
-      // 1. Deep Blue Chamber Background (#07173F)
-      ctx.fillStyle = NASA_PALETTE.deepBlue.hex;
-      ctx.fillRect(0, 0, width, height);
+    // 3. Technical Wind-Tunnel / MSG Chamber Grid & Rings
+    const gridHelper = new THREE.GridHelper(
+      10,
+      20,
+      NASA_PALETTE.blueYonder.hex,
+      NASA_PALETTE.electricBlue.hex
+    );
+    gridHelper.position.y = -1.35;
+    gridHelper.material.opacity = 0.45;
+    gridHelper.material.transparent = true;
+    scene.add(gridHelper);
 
-      // 2. Technical Telemetry Grid (#0042A6 with subtle opacity)
-      ctx.strokeStyle = "rgba(0, 66, 166, 0.35)";
-      ctx.lineWidth = 1;
-      const gridStep = 32;
-      for (let gx = 0; gx < width; gx += gridStep) {
-        ctx.beginPath();
-        ctx.moveTo(gx, 0);
-        ctx.lineTo(gx, height);
-        ctx.stroke();
-      }
-      for (let gy = 0; gy < height; gy += gridStep) {
-        ctx.beginPath();
-        ctx.moveTo(0, gy);
-        ctx.lineTo(width, gy);
-        ctx.stroke();
-      }
+    // Cylindrical tunnel rings (#0042A6 Electric Blue)
+    const ringGroup = new THREE.Group();
+    const ringGeo = new THREE.RingGeometry(1.75, 1.78, 48);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: NASA_PALETTE.electricBlue.hex,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.45,
+    });
+    [-3.2, -1.6, 0, 1.6, 3.2].forEach((xPos) => {
+      const rMesh = new THREE.Mesh(ringGeo, ringMat);
+      rMesh.rotation.y = Math.PI / 2;
+      rMesh.position.set(xPos, 0.1, 0);
+      ringGroup.add(rMesh);
+    });
+    scene.add(ringGroup);
 
-      // 3. Wind Tunnel / MSG Duct Walls (#0042A6 & #2E96F5)
-      ctx.strokeStyle = NASA_PALETTE.electricBlue.hex;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(16, 28);
-      ctx.lineTo(width - 16, 28);
-      ctx.moveTo(16, height - 28);
-      ctx.lineTo(width - 16, height - 28);
-      ctx.stroke();
+    // 4. Fuel Sample Holder & Pyrolysis Zone
+    const sampleGroup = new THREE.Group();
+    const holderGeo = new THREE.BoxGeometry(2.6, 0.14, 0.9);
+    const holderMat = new THREE.MeshStandardMaterial({
+      color: NASA_PALETTE.electricBlue.hex,
+      roughness: 0.35,
+      metalness: 0.65,
+    });
+    const holderMesh = new THREE.Mesh(holderGeo, holderMat);
+    holderMesh.position.set(0, -0.42, 0);
+    sampleGroup.add(holderMesh);
 
-      // Duct Inlet Louvers
-      ctx.strokeStyle = NASA_PALETTE.blueYonder.hex;
-      ctx.lineWidth = 1.5;
-      const inletX = flowSign === 1 ? 22 : width - 22;
-      for (let ly = 40; ly < height - 36; ly += 18) {
-        ctx.beginPath();
-        ctx.moveTo(inletX - 4, ly);
-        ctx.lineTo(inletX + 4, ly + 6);
-        ctx.stroke();
-      }
+    const fuelStripGeo = new THREE.BoxGeometry(2.2, 0.08, 0.68);
+    const fuelStripMat = new THREE.MeshStandardMaterial({
+      color: NASA_PALETTE.white.hex,
+      roughness: 0.4,
+    });
+    const fuelStripMesh = new THREE.Mesh(fuelStripGeo, fuelStripMat);
+    fuelStripMesh.position.set(0, -0.32, 0);
+    sampleGroup.add(fuelStripMesh);
 
-      // 4. Ventilation Airflow Streamlines (#2E96F5 Blue Yonder)
-      const visualFlowSpeed = Math.max(0.15, airflowCmS * 0.22);
-      ctx.strokeStyle =
-        airflowCmS < 1.8
-          ? "rgba(46, 150, 245, 0.28)"
-          : "rgba(46, 150, 245, 0.65)";
-      ctx.lineWidth = 1.5;
+    // Pyrolysis / char glow patch on sample surface
+    const charGeo = new THREE.BoxGeometry(1.1, 0.09, 0.56);
+    const charMat = new THREE.MeshStandardMaterial({
+      color: NASA_PALETTE.martianRed.hex,
+      emissive: NASA_PALETTE.rocketRed.hex,
+      emissiveIntensity: 0.45,
+    });
+    const charMesh = new THREE.Mesh(charGeo, charMat);
+    charMesh.position.set(0, -0.315, 0);
+    sampleGroup.add(charMesh);
 
-      simStateRef.current.airParticles.forEach((p) => {
-        if (isRunning) {
-          p.x += flowSign * visualFlowSpeed * p.speedFactor;
-          if (flowSign === 1 && p.x > width - 24) p.x = 24;
-          if (flowSign === -1 && p.x < 24) p.x = width - 24;
-        }
-        const streakLen = Math.max(4, Math.min(34, airflowCmS * 1.1 + 4));
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x - flowSign * streakLen, p.y);
-        ctx.stroke();
+    // Droplet sphere for FLEX liquid fuel mode (Methanol / Heptane)
+    const dropletGeo = new THREE.SphereGeometry(0.22, 32, 32);
+    const dropletMat = new THREE.MeshStandardMaterial({
+      color: NASA_PALETTE.white.hex,
+      emissive: NASA_PALETTE.blueYonder.hex,
+      emissiveIntensity: 0.3,
+      roughness: 0.15,
+    });
+    const dropletMesh = new THREE.Mesh(dropletGeo, dropletMat);
+    dropletMesh.position.set(-0.35, -0.05, 0);
+    sampleGroup.add(dropletMesh);
 
-        // Arrowhead on streamline
-        ctx.fillStyle = NASA_PALETTE.blueYonder.hex;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 1.6, 0, Math.PI * 2);
-        ctx.fill();
-      });
+    scene.add(sampleGroup);
 
-      // Center coordinates of fuel sample
-      const centerX = width * 0.44;
-      const centerY = height * 0.56;
+    // 5. 3D Volumetric Multi-Layer Flame Meshes (Outer Reaction + Inner Core)
+    const flameBaseGeo = new THREE.SphereGeometry(0.55, 64, 48);
 
-      // 5. Thermal Radiation & O2 Depletion Contours (Optional Overlay)
-      const intensity = Math.max(0.12, probability / 100);
-      const flameStretchX =
-        flowSign * Math.min(135, airflowCmS * 4.2) * (isQuenching ? 0.3 : 1);
-      const buoyancyLiftY =
-        -Math.min(95, gravityG * 130) * (isQuenching ? 0.25 : 1);
-
-      if (showThermalContours) {
-        ctx.save();
-        // Outer thermal hazard contour (#8E1100 Martian Red dashed ring)
-        const contourRx = 48 + Math.abs(flameStretchX) * 0.85 + intensity * 45;
-        const contourRy = 38 + Math.abs(buoyancyLiftY) * 0.6 + intensity * 30;
-        const contourCenterX = centerX + flameStretchX * 0.42;
-        const contourCenterY = centerY + buoyancyLiftY * 0.42;
-
-        const radGrad = ctx.createRadialGradient(
-          centerX + flameStretchX * 0.25,
-          centerY + buoyancyLiftY * 0.25,
-          6,
-          contourCenterX,
-          contourCenterY,
-          Math.max(contourRx, contourRy)
-        );
-
-        if (isQuenching) {
-          radGrad.addColorStop(0, "rgba(9, 96, 225, 0.32)");
-          radGrad.addColorStop(0.6, "rgba(0, 66, 166, 0.14)");
-          radGrad.addColorStop(1, "rgba(7, 23, 63, 0)");
-        } else if (probability >= 60) {
-          radGrad.addColorStop(0, "rgba(228, 55, 0, 0.42)");
-          radGrad.addColorStop(0.55, "rgba(142, 17, 0, 0.28)");
-          radGrad.addColorStop(1, "rgba(7, 23, 63, 0)");
-        } else {
-          radGrad.addColorStop(0, "rgba(9, 96, 225, 0.38)");
-          radGrad.addColorStop(0.55, "rgba(228, 55, 0, 0.18)");
-          radGrad.addColorStop(1, "rgba(7, 23, 63, 0)");
-        }
-
-        ctx.fillStyle = radGrad;
-        ctx.beginPath();
-        ctx.ellipse(
-          contourCenterX,
-          contourCenterY,
-          contourRx,
-          contourRy,
-          0,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-
-        // Dashed thermal boundary line
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = isQuenching
-          ? NASA_PALETTE.blueYonder.hex
-          : probability >= 60
-          ? NASA_PALETTE.rocketRed.hex
-          : NASA_PALETTE.neonYellow.hex;
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.ellipse(
-          contourCenterX,
-          contourCenterY,
-          contourRx,
-          contourRy,
-          0,
-          0,
-          Math.PI * 2
-        );
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.restore();
-      }
-
-      // 6. Fuel Sample / Holder Geometry
-      ctx.save();
-      if (isDroplet) {
-        // Silicon carbide fiber tethers for FLEX droplet experiment
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(centerX - 70, centerY - 50);
-        ctx.lineTo(centerX + 70, centerY + 50);
-        ctx.moveTo(centerX - 70, centerY + 50);
-        ctx.lineTo(centerX + 70, centerY - 50);
-        ctx.stroke();
-
-        // Liquid fuel droplet core
-        ctx.fillStyle = NASA_PALETTE.white.hex;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 9, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = NASA_PALETTE.blueYonder.hex;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else {
-        // Solid fuel sample strip (BASS-II / SAFFIRE)
-        const sampleW = 130;
-        const sampleH = 12;
-        // Metallic holder frame
-        ctx.fillStyle = NASA_PALETTE.electricBlue.hex;
-        ctx.fillRect(
-          centerX - sampleW / 2 - 8,
-          centerY + 2,
-          sampleW + 16,
-          sampleH + 6
-        );
-        // Active fuel strip
-        ctx.fillStyle =
-          material === "Nomex III"
-            ? NASA_PALETTE.neonBlue.hex
-            : NASA_PALETTE.white.hex;
-        ctx.fillRect(centerX - sampleW / 2, centerY, sampleW, sampleH);
-
-        // Char / pyrolysis blackened zone near ignition point
-        const charWidth = Math.min(
-          sampleW * 0.85,
-          18 + (probability / 100) * 68
-        );
-        ctx.fillStyle = NASA_PALETTE.martianRed.hex;
-        ctx.fillRect(centerX - 24, centerY, charWidth, sampleH);
-
-        // PMMA melting bubbles (observed in NASA BASS-II video transcript)
-        if (material === "PMMA Film" && !isQuenching) {
-          ctx.fillStyle = NASA_PALETTE.neonYellow.hex;
-          simStateRef.current.bubbles.forEach((b) => {
-            const by =
-              centerY - 1 - Math.abs(Math.sin(t * 2.2 + b.phase)) * 4.5;
-            ctx.beginPath();
-            ctx.arc(centerX + b.offsetX, by, b.r, 0, Math.PI * 2);
-            ctx.fill();
-          });
-        }
-      }
-      ctx.restore();
-
-      // 7. Dynamic Physics Flame Plume Rendering
-      ctx.save();
-      const flickerX = Math.sin(t * 5.2) * (1.8 + airflowCmS * 0.08);
-      const flickerY = Math.cos(t * 6.1) * 1.6;
-
-      if (gravityG < 0.05 && airflowCmS < 2.2) {
-        // MICROGRAVITY SPHERICAL BLUE DIFFUSION FLAME (FLEX / Quiescent BASS-II)
-        const sphereRadius = isQuenching
-          ? 18 + Math.sin(t * 3) * 2
-          : 34 + (oxygenPercent - 15) * 1.4;
-
-        // Outer Neon Blue / Blue Yonder chemiluminescent reaction zone
-        const sphereGrad = ctx.createRadialGradient(
-          centerX,
-          centerY - 4,
-          4,
-          centerX,
-          centerY - 4,
-          sphereRadius
-        );
-        sphereGrad.addColorStop(0, NASA_PALETTE.white.hex);
-        sphereGrad.addColorStop(0.35, NASA_PALETTE.blueYonder.hex);
-        sphereGrad.addColorStop(0.78, NASA_PALETTE.neonBlue.hex);
-        sphereGrad.addColorStop(1, "rgba(7, 23, 63, 0)");
-
-        ctx.fillStyle = sphereGrad;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY - 4, sphereRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Crisp spherical flame boundary ring
-        ctx.strokeStyle = NASA_PALETTE.blueYonder.hex;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY - 4, sphereRadius * 0.86, 0, Math.PI * 2);
-        ctx.stroke();
-      } else {
-        // FORCED-FLOW OR PARTIAL-GRAVITY ELONGATED PLUME
-        const baseScale = isQuenching
-          ? 0.38
-          : isBlowoff
-          ? 0.55
-          : Math.max(0.5, Math.min(1.45, probability / 58));
-
-        const tipX =
-          centerX +
-          flameStretchX * baseScale +
-          flickerX +
-          (isBlowoff ? flowSign * 22 : 0);
-        const tipY =
-          centerY - 22 * baseScale + buoyancyLiftY * baseScale + flickerY;
-
-        // Outer Reaction Envelope (#E43700 Rocket Red + #0960E1 leading anchor)
-        ctx.beginPath();
-        ctx.moveTo(centerX - flowSign * 22 * baseScale, centerY);
-        ctx.quadraticCurveTo(
-          centerX + flameStretchX * 0.35,
-          centerY - 48 * baseScale + buoyancyLiftY * 0.5,
-          tipX,
-          tipY
-        );
-        ctx.quadraticCurveTo(
-          centerX + flameStretchX * 0.45,
-          centerY + 8,
-          centerX - flowSign * 22 * baseScale,
-          centerY
-        );
-        ctx.closePath();
-
-        const plumeGrad = ctx.createLinearGradient(
-          centerX - flowSign * 22,
-          centerY,
-          tipX,
-          tipY
-        );
-        // Leading edge in microgravity is always blue (CH*/OH* chemiluminescence)
-        plumeGrad.addColorStop(0, NASA_PALETTE.neonBlue.hex);
-        plumeGrad.addColorStop(0.24, NASA_PALETTE.blueYonder.hex);
-        plumeGrad.addColorStop(
-          0.6,
-          isQuenching ? NASA_PALETTE.electricBlue.hex : NASA_PALETTE.rocketRed.hex
-        );
-        plumeGrad.addColorStop(
-          1,
-          isQuenching ? "rgba(9, 96, 225, 0.1)" : NASA_PALETTE.neonYellow.hex
-        );
-
-        ctx.fillStyle = plumeGrad;
-        ctx.fill();
-
-        // Inner Incandescent Core (#EAFE07 Neon Yellow & #FFFFFF White)
-        if (!isQuenching) {
-          ctx.beginPath();
-          ctx.moveTo(centerX - flowSign * 10 * baseScale, centerY - 2);
-          ctx.quadraticCurveTo(
-            centerX + flameStretchX * 0.25,
-            centerY - 26 * baseScale + buoyancyLiftY * 0.35,
-            centerX + (tipX - centerX) * 0.68,
-            centerY + (tipY - centerY) * 0.68
-          );
-          ctx.quadraticCurveTo(
-            centerX + flameStretchX * 0.25,
-            centerY,
-            centerX - flowSign * 10 * baseScale,
-            centerY - 2
-          );
-          ctx.closePath();
-          ctx.fillStyle =
-            probability >= 65
-              ? NASA_PALETTE.neonYellow.hex
-              : NASA_PALETTE.white.hex;
-          ctx.fill();
-        }
-      }
-      ctx.restore();
-
-      // 8. Downstream Smoke / Soot Aerosol Plume (SAME-R PSI-101 telemetry)
-      ctx.save();
-      simStateRef.current.sootParticles.forEach((sp) => {
-        if (isRunning) {
-          sp.x += flowSign * (1.1 + airflowCmS * 0.12);
-          sp.y += -gravityG * 1.4 + Math.sin(t * 2 + sp.life) * 0.35;
-          sp.life += 1;
-          const maxDist = Math.abs(sp.x - centerX);
-          if (maxDist > 230 || sp.y < 34 || sp.y > height - 34) {
-            sp.x = centerX + flowSign * 18;
-            sp.y = centerY - 12 + ((sp.life * 7) % 16);
-          }
-        }
-        ctx.fillStyle =
-          probability >= 60
-            ? "rgba(228, 55, 0, 0.55)"
-            : "rgba(46, 150, 245, 0.45)";
-        ctx.beginPath();
-        ctx.arc(
-          sp.x,
-          sp.y,
-          sp.radius * (isQuenching ? 0.6 : 1.15),
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      });
-      ctx.restore();
-
-      // 9. Technical Mission-Control HUD Overlays on Canvas
-      ctx.font = "600 11px 'JetBrains Mono', 'Fira Code', monospace";
-      ctx.fillStyle = NASA_PALETTE.white.hex;
-      ctx.fillText(
-        `CHAMBER TELEMETRY // ${material.toUpperCase()} // ${flowDirection} FLOW`,
-        26,
-        20
-      );
-
-      // Right-aligned regime tag
-      const regimeBadgeText = `REJİM: ${flameRegime}`;
-      const badgeWidth = ctx.measureText(regimeBadgeText).width + 16;
-      ctx.fillStyle =
-        probability >= 75
-          ? NASA_PALETTE.rocketRed.hex
-          : probability >= 50
-          ? NASA_PALETTE.electricBlue.hex
-          : NASA_PALETTE.deepBlue.hex;
-      ctx.fillRect(width - badgeWidth - 20, 6, badgeWidth, 18);
-      ctx.strokeStyle =
-        probability >= 50
-          ? NASA_PALETTE.neonYellow.hex
-          : NASA_PALETTE.blueYonder.hex;
-      ctx.strokeRect(width - badgeWidth - 20, 6, badgeWidth, 18);
-      ctx.fillStyle =
-        probability >= 50 && probability < 75
-          ? NASA_PALETTE.neonYellow.hex
-          : NASA_PALETTE.white.hex;
-      ctx.fillText(regimeBadgeText, width - badgeWidth - 12, 19);
-
-      // Bottom telemetry strip inside canvas
-      ctx.fillStyle = "rgba(7, 23, 63, 0.88)";
-      ctx.fillRect(20, height - 56, width - 40, 24);
-      ctx.strokeStyle = NASA_PALETTE.electricBlue.hex;
-      ctx.strokeRect(20, height - 56, width - 40, 24);
-
-      ctx.font = "500 11px 'JetBrains Mono', monospace";
-      ctx.fillStyle = NASA_PALETTE.blueYonder.hex;
-      ctx.fillText(
-        `V_fan: ${airflowCmS.toFixed(1)} cm/s`,
-        30,
-        height - 40
-      );
-      ctx.fillStyle = NASA_PALETTE.white.hex;
-      ctx.fillText(
-        `ppO₂: ${metrics.partialPressureO2Kpa} kPa (${oxygenPercent.toFixed(1)}%)`,
-        165,
-        height - 40
-      );
-      ctx.fillStyle = NASA_PALETTE.neonYellow.hex;
-      ctx.fillText(
-        `Yayılım Hızı: ${metrics.predictedSpreadRateMmS} mm/s`,
-        345,
-        height - 40
-      );
-      ctx.fillStyle =
-        probability >= 60 ? NASA_PALETTE.rocketRed.hex : NASA_PALETTE.blueYonder.hex;
-      ctx.fillText(
-        `G-Kuvveti: ${gravityG.toFixed(2)}g | t+${elapsedSimSec}s`,
-        525,
-        height - 40
-      );
-
-      ctx.restore();
-      animationFrameId = requestAnimationFrame(render);
+    const outerUniforms = {
+      uTime: { value: 0 },
+      uStretchX: { value: 1.2 },
+      uBuoyancyY: { value: 0.0 },
+      uScale: { value: 1.0 },
+      uTurbulence: { value: 1.0 },
+      uIntensity: { value: 0.7 },
+      uIsSpherical0g: { value: 0.0 },
+      uIsQuenching: { value: 0.0 },
+      uLayerType: { value: 1.0 },
     };
 
-    animationFrameId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [params, riskEvaluation, isRunning, showThermalContours, elapsedSimSec]);
+    const innerUniforms = {
+      uTime: { value: 0 },
+      uStretchX: { value: 0.85 },
+      uBuoyancyY: { value: 0.0 },
+      uScale: { value: 0.62 },
+      uTurbulence: { value: 0.7 },
+      uIntensity: { value: 0.7 },
+      uIsSpherical0g: { value: 0.0 },
+      uIsQuenching: { value: 0.0 },
+      uLayerType: { value: 0.0 },
+    };
+
+    const outerFlameMat = new THREE.ShaderMaterial({
+      vertexShader: FLAME_VERTEX_SHADER,
+      fragmentShader: FLAME_FRAGMENT_SHADER,
+      uniforms: outerUniforms,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+
+    const innerFlameMat = new THREE.ShaderMaterial({
+      vertexShader: FLAME_VERTEX_SHADER,
+      fragmentShader: FLAME_FRAGMENT_SHADER,
+      uniforms: innerUniforms,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const outerFlameMesh = new THREE.Mesh(flameBaseGeo, outerFlameMat);
+    const innerFlameMesh = new THREE.Mesh(flameBaseGeo, innerFlameMat);
+    outerFlameMesh.position.set(-0.35, -0.05, 0);
+    innerFlameMesh.position.set(-0.35, -0.05, 0);
+    scene.add(outerFlameMesh);
+    scene.add(innerFlameMesh);
+
+    // 6. 3D Ventilation Airflow Streamlines (#2E96F5 Blue Yonder)
+    const airCount = 90;
+    const airPositions = new Float32Array(airCount * 6); // 2 vertices per line segment
+    const airSeeds = Array.from({ length: airCount }, (_, i) => ({
+      x: -3.5 + ((i * 0.43) % 7.0),
+      y: -1.0 + ((i * 0.29) % 2.3),
+      z: -1.1 + ((i * 0.37) % 2.2),
+      speedMul: 0.75 + (i % 5) * 0.12,
+    }));
+
+    const airLineGeo = new THREE.BufferGeometry();
+    airLineGeo.setAttribute(
+      "position",
+      new THREE.BufferAttribute(airPositions, 3)
+    );
+    const airLineMat = new THREE.LineBasicMaterial({
+      color: NASA_PALETTE.blueYonder.hex,
+      transparent: true,
+      opacity: 0.62,
+    });
+    const airLines = new THREE.LineSegments(airLineGeo, airLineMat);
+    scene.add(airLines);
+
+    // 7. 3D Flame Embers / Pyrolysis Soot Particles (#EAFE07 Neon Yellow & #E43700 Rocket Red)
+    const emberCount = 75;
+    const emberPositions = new Float32Array(emberCount * 3);
+    const emberColors = new Float32Array(emberCount * 3);
+    const cYellow = new THREE.Color(NASA_PALETTE.neonYellow.hex);
+    const cRed = new THREE.Color(NASA_PALETTE.rocketRed.hex);
+
+    const emberData = Array.from({ length: emberCount }, (_, i) => {
+      const c = i % 2 === 0 ? cYellow : cRed;
+      emberColors[i * 3] = c.r;
+      emberColors[i * 3 + 1] = c.g;
+      emberColors[i * 3 + 2] = c.b;
+      return {
+        x: -0.35,
+        y: -0.05,
+        z: 0,
+        age: (i * 0.07) % 1.0,
+        spreadY: ((i % 7) - 3) * 0.06,
+        spreadZ: ((i % 5) - 2) * 0.06,
+      };
+    });
+
+    const emberGeo = new THREE.BufferGeometry();
+    emberGeo.setAttribute(
+      "position",
+      new THREE.BufferAttribute(emberPositions, 3)
+    );
+    emberGeo.setAttribute("color", new THREE.BufferAttribute(emberColors, 3));
+    const emberMat = new THREE.PointsMaterial({
+      size: 0.085,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const emberPoints = new THREE.Points(emberGeo, emberMat);
+    scene.add(emberPoints);
+
+    // Mouse Orbit Interaction Handlers
+    const domElem = renderer.domElement;
+    const onPointerDown = (e) => {
+      cameraOrbitRef.current.isDragging = true;
+      cameraOrbitRef.current.lastX = e.clientX;
+      cameraOrbitRef.current.lastY = e.clientY;
+    };
+    const onPointerMove = (e) => {
+      if (!cameraOrbitRef.current.isDragging) return;
+      const dx = e.clientX - cameraOrbitRef.current.lastX;
+      const dy = e.clientY - cameraOrbitRef.current.lastY;
+      cameraOrbitRef.current.lastX = e.clientX;
+      cameraOrbitRef.current.lastY = e.clientY;
+      cameraOrbitRef.current.targetTheta -= dx * 0.007;
+      cameraOrbitRef.current.targetPhi = Math.max(
+        0.2,
+        Math.min(Math.PI * 0.48, cameraOrbitRef.current.targetPhi - dy * 0.006)
+      );
+      setCameraPreset("custom");
+    };
+    const onPointerUp = () => {
+      cameraOrbitRef.current.isDragging = false;
+    };
+
+    domElem.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+
+    // ResizeObserver for seamless responsive layout
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        const h = entry.contentRect.height;
+        if (w > 0 && h > 0) {
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.setSize(w, h);
+        }
+      }
+    });
+    resizeObserver.observe(container);
+
+    // 8. 60fps Animation Loop
+    let animId;
+    let simClock = 0;
+
+    const animate = () => {
+      animId = requestAnimationFrame(animate);
+
+      const {
+        params: curParams,
+        riskEvaluation: curEval,
+        isRunning: running,
+      } = livePropsRef.current;
+
+      if (running) {
+        simClock += 0.016;
+      }
+
+      const {
+        airflowCmS = 8.5,
+        gravityG = 0.0,
+        material = "PMMA Film",
+        flowDirection = "CONCURRENT",
+      } = curParams;
+      const { probability = 50, flameRegime = "" } = curEval;
+
+      const flowSign = flowDirection === "CONCURRENT" ? 1 : -1;
+      const isDroplet = material === "Methanol" || material === "Heptane";
+      const isQuenching =
+        flameRegime === "QUENCHING_STARVATION" || probability < 16 ? 1.0 : 0.0;
+      const isSpherical0g =
+        gravityG < 0.05 && airflowCmS < 2.2 ? 1.0 : 0.0;
+
+      // Toggle sample geometry visibility (Droplet vs Solid Strip)
+      dropletMesh.visible = isDroplet;
+      holderMesh.visible = !isDroplet;
+      fuelStripMesh.visible = !isDroplet;
+      charMesh.visible = !isDroplet;
+
+      const intensity = Math.max(0.18, probability / 100);
+      const stretchX =
+        isSpherical0g > 0.5
+          ? flowSign * airflowCmS * 0.08
+          : flowSign *
+            Math.min(2.35, 0.25 + airflowCmS * 0.072) *
+            (isQuenching > 0.5 ? 0.35 : 1.0);
+      const buoyancyY =
+        Math.min(1.85, gravityG * 2.1) * (isQuenching > 0.5 ? 0.3 : 1.0);
+      const baseScale =
+        isQuenching > 0.5
+          ? 0.42
+          : Math.max(0.55, Math.min(1.28, 0.52 + intensity * 0.68));
+
+      // Update Shader Uniforms
+      outerUniforms.uTime.value = simClock;
+      outerUniforms.uStretchX.value = stretchX;
+      outerUniforms.uBuoyancyY.value = buoyancyY;
+      outerUniforms.uScale.value = baseScale;
+      outerUniforms.uTurbulence.value = 0.6 + airflowCmS * 0.04;
+      outerUniforms.uIntensity.value = intensity;
+      outerUniforms.uIsSpherical0g.value = isSpherical0g;
+      outerUniforms.uIsQuenching.value = isQuenching;
+
+      innerUniforms.uTime.value = simClock * 1.15;
+      innerUniforms.uStretchX.value = stretchX * 0.68;
+      innerUniforms.uBuoyancyY.value = buoyancyY * 0.68;
+      innerUniforms.uScale.value = baseScale * 0.62;
+      innerUniforms.uTurbulence.value = 0.45 + airflowCmS * 0.03;
+      innerUniforms.uIntensity.value = intensity;
+      innerUniforms.uIsSpherical0g.value = isSpherical0g;
+      innerUniforms.uIsQuenching.value = isQuenching;
+
+      // Update dynamic point light color & intensity
+      flameLight.color.set(
+        isSpherical0g > 0.5 || isQuenching > 0.5
+          ? NASA_PALETTE.blueYonder.hex
+          : probability >= 65
+          ? NASA_PALETTE.rocketRed.hex
+          : NASA_PALETTE.neonBlue.hex
+      );
+      flameLight.intensity =
+        (isQuenching > 0.5 ? 1.1 : 2.2 + intensity * 1.8) +
+        Math.sin(simClock * 9) * 0.25;
+
+      // Update 3D Airflow Streamlines
+      const posAttr = airLineGeo.getAttribute("position");
+      const streakLen = Math.max(0.12, Math.min(0.75, airflowCmS * 0.025));
+      const stepSpeed = Math.max(0.008, airflowCmS * 0.0038);
+
+      for (let i = 0; i < airCount; i++) {
+        const s = airSeeds[i];
+        if (running) {
+          s.x += flowSign * stepSpeed * s.speedMul;
+          if (flowSign === 1 && s.x > 3.5) s.x = -3.5;
+          if (flowSign === -1 && s.x < -3.5) s.x = 3.5;
+        }
+        const i6 = i * 6;
+        posAttr.array[i6] = s.x;
+        posAttr.array[i6 + 1] = s.y;
+        posAttr.array[i6 + 2] = s.z;
+        posAttr.array[i6 + 3] = s.x - flowSign * streakLen;
+        posAttr.array[i6 + 4] = s.y;
+        posAttr.array[i6 + 5] = s.z;
+      }
+      posAttr.needsUpdate = true;
+
+      // Update 3D Ember / Pyrolysis Particles
+      const emberAttr = emberGeo.getAttribute("position");
+      for (let i = 0; i < emberCount; i++) {
+        const em = emberData[i];
+        if (running) {
+          em.age += 0.012 + airflowCmS * 0.0005;
+          if (em.age > 1.0) em.age = 0.0;
+        }
+        const p = em.age;
+        const ex = -0.35 + stretchX * p * 1.35;
+        const ey =
+          -0.05 +
+          buoyancyY * p * 1.15 +
+          em.spreadY * p * 3.0 +
+          Math.sin(simClock * 5 + i) * 0.05;
+        const ez = em.spreadZ * p * 3.0 + Math.cos(simClock * 4 + i) * 0.05;
+
+        emberAttr.array[i * 3] = ex;
+        emberAttr.array[i * 3 + 1] = ey;
+        emberAttr.array[i * 3 + 2] = ez;
+      }
+      emberAttr.needsUpdate = true;
+      emberMat.opacity = isQuenching > 0.5 ? 0.25 : 0.85;
+
+      // Smooth Camera Orbit Interpolation
+      const orbit = cameraOrbitRef.current;
+      orbit.theta += (orbit.targetTheta - orbit.theta) * 0.1;
+      orbit.phi += (orbit.targetPhi - orbit.phi) * 0.1;
+      orbit.radius += (orbit.targetRadius - orbit.radius) * 0.1;
+
+      camera.position.x =
+        orbit.radius * Math.sin(orbit.phi) * Math.sin(orbit.theta);
+      camera.position.y = orbit.radius * Math.cos(orbit.phi);
+      camera.position.z =
+        orbit.radius * Math.sin(orbit.phi) * Math.cos(orbit.theta);
+      camera.lookAt(0.15, 0.0, 0);
+
+      renderer.render(scene, camera);
+    };
+
+    animId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      resizeObserver.disconnect();
+      domElem.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      renderer.dispose();
+    };
+  }, []);
 
   return (
-    <div className="sim-card">
-      <div className="sim-card-header">
+    <div className="panel-card sim-card">
+      <div className="panel-card-header">
         <div>
           <span className="section-eyebrow">
-            GERÇEK ZAMANLI MİKROÇEKİM YANMA ODASI SİMÜLATÖRÜ
+            THREE.JS 3B YANMA VE HAVA AKIŞI SİMÜLASYONU
           </span>
-          <h3 className="sim-title">
-            2B Fizik Tabanlı Alev Morfolojisi & Hava Akışı Telemetri Simülasyonu
+          <h3>
+            Mikroçekim Alev Morfolojisi ({params.material} //{" "}
+            {params.flowDirection === "CONCURRENT"
+              ? "Aynı Yönlü Akış"
+              : "Ters Yönlü Akış"}
+            )
           </h3>
         </div>
+
         <div className="sim-controls-row">
+          <div className="camera-view-group" role="group" aria-label="Kamera Açısı">
+            <button
+              type="button"
+              className={`nasa-btn nasa-btn-xs ${
+                cameraPreset === "iso" ? "active" : ""
+              }`}
+              onClick={() => handleSetCameraView("iso")}
+            >
+              3B İzometrik
+            </button>
+            <button
+              type="button"
+              className={`nasa-btn nasa-btn-xs ${
+                cameraPreset === "side" ? "active" : ""
+              }`}
+              onClick={() => handleSetCameraView("side")}
+            >
+              Yan Kesit
+            </button>
+            <button
+              type="button"
+              className={`nasa-btn nasa-btn-xs ${
+                cameraPreset === "top" ? "active" : ""
+              }`}
+              onClick={() => handleSetCameraView("top")}
+            >
+              Üst Bakış
+            </button>
+          </div>
+
           <button
             type="button"
-            className={`nasa-btn nasa-btn-sm ${isRunning ? "active" : ""}`}
+            className="nasa-btn nasa-btn-xs"
             onClick={() => setIsRunning((r) => !r)}
           >
-            {isRunning ? "⏸ Simülasyonu Duraklat" : "▶ Simülasyonu Başlat"}
+            {isRunning ? "⏸ Duraklat" : "▶ Oynat"}
           </button>
-          <button
-            type="button"
-            className={`nasa-btn nasa-btn-sm ${
-              showThermalContours ? "active" : ""
-            }`}
-            onClick={() => setShowThermalContours((c) => !c)}
-          >
-            {showThermalContours ? "◉ Termal Kontur: AÇIK" : "○ Termal Kontur: KAPALI"}
-          </button>
-        </div>
-      </div>
 
-      <div className="sim-canvas-wrapper">
-        <canvas ref={canvasRef} className="sim-canvas" />
-      </div>
-
-      {/* Physical explanation banner + Quick Anomaly / Countermeasure Injection */}
-      <div className="sim-footer-bar">
-        <div className="sim-regime-note">
-          <span className="regime-dot" style={{ background: riskEvaluation.riskColor }} />
-          <div>
-            <strong>Aktif Fiziksel Rejim ({riskEvaluation.flameRegime}):</strong>{" "}
-            <span>{riskEvaluation.regimeDescription}</span>
-          </div>
-        </div>
-
-        <div className="sim-quick-actions">
-          <span className="quick-action-label">Hızlı Senaryo Enjeksiyonu:</span>
-          <button
-            type="button"
-            className="nasa-btn nasa-btn-danger-outline nasa-btn-xs"
-            onClick={() =>
-              onUpdateParams({
-                oxygenPercent: Math.min(38, Number((params.oxygenPercent + 5.0).toFixed(1))),
-                airflowCmS: Math.max(params.airflowCmS, 14.0),
-                flowDirection: "CONCURRENT",
-              })
-            }
-          >
-            ▲ O₂ Sızıntısı (+5% O₂)
-          </button>
-          <button
-            type="button"
-            className="nasa-btn nasa-btn-xs"
-            onClick={() =>
-              onUpdateParams({
-                airflowCmS: 1.0,
-                flowDirection: "OPPOSED",
-              })
-            }
-          >
-            ▼ Fan Kesintisi (Quenching &lt;1.2 cm/s)
-          </button>
-          <button
-            type="button"
-            className="nasa-btn nasa-btn-xs"
-            onClick={() =>
-              onUpdateParams({
-                gravityG: params.gravityG === 0 ? 0.16 : params.gravityG === 0.16 ? 1.0 : 0.0,
-              })
-            }
-          >
-            ⟳ Çekim Değiştir ({params.gravityG === 0 ? "0g→0.16g Ay" : params.gravityG === 0.16 ? "0.16g→1g Dünya" : "1g→0g ISS"})
-          </button>
           {hasRecommendations && (
             <button
               type="button"
-              className="nasa-btn nasa-btn-yellow nasa-btn-xs"
+              className="nasa-btn nasa-btn-accent nasa-btn-xs"
               onClick={onApplyAllRecommendations}
             >
-              ★ AI Önerilerini Simülasyona Uygula
+              ★ AI Önlemlerini Simüle Et
             </button>
           )}
         </div>
+      </div>
+
+      {/* 3D WebGL Viewport with HUD Overlay */}
+      <div className="sim-canvas-wrapper">
+        <div
+          ref={mountRef}
+          className="three-mount-box"
+          title="3B sahneyi döndürmek için fareyle sürükleyin"
+        />
+
+        {/* Minimalist HUD Overlay inside 3D Viewport */}
+        <div className="sim-hud-top-left">
+          <span className="hud-tag">
+            REJİM: <strong>{riskEvaluation.flameRegime}</strong>
+          </span>
+          <span className="hud-tag">
+            YAYILIM: <strong>{riskEvaluation.metrics.predictedSpreadRateMmS} mm/s</strong>
+          </span>
+        </div>
+
+        <div className="sim-hud-bottom-right">
+          <span>3B Sahne: Döndürmek için sürükleyin</span>
+        </div>
+      </div>
+
+      <div className="sim-regime-summary">
+        <span
+          className="regime-indicator-bar"
+          style={{ background: riskEvaluation.riskColor }}
+        />
+        <p>{riskEvaluation.regimeDescription}</p>
       </div>
     </div>
   );

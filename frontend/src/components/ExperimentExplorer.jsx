@@ -235,13 +235,15 @@ export default function ExperimentExplorer({ onLoadExperimentIntoSim }) {
                           style={{
                             borderColor: risk.riskColor,
                             color:
-                              risk.probability >= 50 && risk.probability < 75
-                                ? NASA_PALETTE.neonYellow.hex
-                                : NASA_PALETTE.white.hex,
+                              risk.probability >= 75
+                                ? NASA_PALETTE.white.hex
+                                : NASA_PALETTE.deepBlue.hex,
                             background:
                               risk.probability >= 75
                                 ? NASA_PALETTE.rocketRed.hex
-                                : "rgba(0, 66, 166, 0.4)",
+                                : risk.probability >= 50
+                                ? NASA_PALETTE.neonYellow.hex
+                                : "#EEF4FF",
                           }}
                         >
                           %{risk.probability}
@@ -253,7 +255,7 @@ export default function ExperimentExplorer({ onLoadExperimentIntoSim }) {
                       <td onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
-                          className="nasa-btn nasa-btn-yellow nasa-btn-xs"
+                          className="nasa-btn nasa-btn-primary nasa-btn-xs"
                           onClick={() => onLoadExperimentIntoSim(exp)}
                         >
                           Simülasyona Yükle →
