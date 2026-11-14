@@ -1,0 +1,58 @@
+:root {
+  /* Official NASA Color Palette (User Specification) */
+  --nasa-blue-yonder: #2E96F5;
+  --nasa-neon-blue: #0960E1;
+  --nasa-electric-blue: #0042A6;
+  --nasa-deep-blue: #07173F;
+  --nasa-rocket-red: #E43700;
+  --nasa-martian-red: #8E1100;
+  --nasa-neon-yellow: #EAFE07;
+  --nasa-white: #FFFFFF;
+
+  /* Derived Surface & Border Tokens strictly from the 8 NASA colors */
+  --surface-deep: #07173F;
+  --surface-panel: rgba(0, 66, 166, 0.18);
+  --surface-panel-elevated: rgba(0, 66, 166, 0.30);
+  --surface-header: rgba(7, 23, 63, 0.94);
+  --border-subtle: rgba(46, 150, 245, 0.26);
+  --border-strong: #0042A6;
+  --border-active: #2E96F5;
+  --text-primary: #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.78);
+  --text-muted: rgba(255, 255, 255, 0.58);
+
+  font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto,
+    sans-serif;
+  color: var(--nasa-white);
+  background-color: var(--nasa-deep-blue);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--nasa-deep-blue);
+  color: var(--nasa-white);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+}
