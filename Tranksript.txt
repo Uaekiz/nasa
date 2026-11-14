@@ -1,0 +1,68 @@
+Hi, I'm Tracy Prader and I'm the program scientist for physical sciences at NASA headquarters. I'm part of the team who helped develop the flames in freef fall
+0:1212 saniyechallenge. Fires are extremely dangerous, especially [music] in space exploration. Imagine you're on a space mission and you're 239,000
+0:2121 saniyem from the Earth in a confined space [music] when you hear a fire alarm. To help avoid that scenario, NASA's been
+0:2828 saniyeconducting research on fire in space for [music] decades, and much of that data is housed within the physical sciences informatics database, [music] which
+0:3636 saniyeyou'll be using for this challenge. In microgravity, we don't have buoyancy driven convection. This means hot air doesn't rise and cold air doesn't sink
+0:4545 saniye[music] the way it does on Earth. This creates a different thermal environment and [music] thus flame characteristics, ignition, propagation, and
+0:5353 saniyeextinguishment can be quite different than in [music] normal gravity. You'll hear more about that later in this video. As NASA goes back to the lunar
+1:021 dakika 2 saniye[music] surface, this time to stay and establish a long-term presence there, we need to understand the behavior of flames [music] in a partial gravity
+1:091 dakika 9 saniyeenvironment. We anticipate habitats on the lunar surface will have increased oxygen levels which [music] mitigates the risk of crew experiencing
+1:171 dakika 17 saniyedecompression sickness aka the bins and enables them to conduct more frequent activities on the moon and space suits.
+1:241 dakika 24 saniyeHowever, [music] this enhanced oxygen and partial gravity environment also has implications for flammability of materials. By helping
+1:331 dakika 33 saniyeNASA look at our existing data sets in new ways, you can help us on our journey to explore farther while also keeping
+1:401 dakika 40 saniyecrews safe. The data sets we have can inform fire safety protocols, design of fire suppression systems, and how we
+1:481 dakika 48 saniyescreen materials to assess the risk of fire in various [music] environments.
+2. bölüm: Microgravity flame behavior
+1:541 dakika 54 saniyeWelcome, welcome. My name is Uchian Alice Chan, the [music] director of lasers, flames, and aerosols research group from the mechanical and aerospace
+2:032 dakika 3 saniyeengineering department [music] at the University of California, Irvine.
+2:082 dakika 8 saniyeI'm a subject matter expert [music] for the flame in freef fall challenge.
+2:142 dakika 14 saniyeNASA has been studying how different types of fuels including [music] gaseous, liquid and solid fuels burn in
+2:212 dakika 21 saniyelow-gravity environment under different atmospheric [music] conditions. And these microgravity flames have been studied using drop towers, [music]
+2:302 dakika 30 saniyeparabolic flight, sounding rocket, suborbital flights, and through the missions to the ISS.
+2:372 dakika 37 saniyeNow, let's see what flames look like in microgravity. Let's take a candle flame as an example.
+2:462 dakika 46 saniyeOn Earth, buoyancy causes hot gases to rise, [music] given its flame, familiar tear drop shape and carrying the suit
+2:552 dakika 55 saniyeupwards, making the flame yellow. In microgravity, buoyancy is greatly reduced. [music] The flame becomes more
+3:033 dakika 3 saniyespherical, sfree, and blue because the hot gases no longer rise [music] as they do on Earth. The flame also does not
+3:123 dakika 12 saniyeflicker in the same way as it does on Earth.
+3:183 dakika 18 saniyeAnother striking example is NASA's microgravity e-ill flames experiment. An electric field drags flam
+3:253 dakika 25 saniye[music]
+3:253 dakika 25 saniyeions in the spherical flame creating ion driven wind [music] and it transform it into a teardropshaped flames [music] even in microgravity.
+3:393 dakika 39 saniyeThis acrylic rod burns in a fan driven flow during the best two microraph [music] experiment
+3:473 dakika 47 saniyeand the melting acrylic bubbles create irregular features of [music] the flame.
+3:533 dakika 53 saniyeThis is a B gaseous burner which uses a porous burner for flammability and [music] extinction in low gravity.
+4:034 dakika 3 saniyeTo sum up, microgravity flames can look dramatically different from the flames on Earth [music] because the buoyancy is greatly reduced.
+4:154 dakika 15 saniyeNow, let's look at the data.
+3. bölüm: Accessing NASA PSI data
+4:184 dakika 18 saniyeHello and welcome to the NASA Space App Challenge. My name is Shubha Yusen and I work at the Marshall Space Flight Center
+4:264 dakika 26 saniyeserving as the lead scientist for a NASA physical science data repository known as physical science informatics or PSI
+4:344 dakika 34 saniyefor short. By now you must have read all about this specific combustion related
+4:404 dakika 40 saniyespace challenge. Over the last couple of decades, NASA has been performing significant investigations in the area
+4:494 dakika 49 saniyeof combustion science, showing how a flame behaves very differently in a microgravity environment compared to that of Earth.
+5:005 dakikaThis has generated a large volume of data. Sometimes for a user looking for a specific investigation or a specific
+5:095 dakika 9 saniyedata set this might be a little overwhelming and confusing. Equally important it might be difficult to
+5:175 dakika 17 saniyeinterpret the data such that such that they can design the next generation of spacecrafts or even habitats on the
+5:265 dakika 26 saniyelunar surface that are safer from a fire safety standpoint. [music]
+5:325 dakika 32 saniyeBest way to get to PSI is to just type in psi.mnasa.gov and it takes you [music] to the psi web link and the data repository from there.
+5:445 dakika 44 saniyeAlternately, you can just scan in the QR code. Once you are there, you'll notice that there are six different areas of
+5:525 dakika 52 saniyephysical sciences. You select combustion science and you will see 24 investigations with 12 terabytes of
+5:595 dakika 59 saniyedata. That in itself is a large volume of data and that is why we need your help with your app. Once you click on
+6:076 dakika 7 saniyeone of these investigations, it will give you the overview of that specific investigation such as the objectives and the approach and also on
+6:176 dakika 17 saniyethe left you will see a number of folders containing the important scientific data sets and the scientific
+6:246 dakika 24 saniyedocuments. [snorts] For example, if you click on data files and documents, it'll take you to a folder where you will
+6:316 dakika 31 saniyenotice that a number of samples were tested under the reduced gravity environment and each of them have a
+6:396 dakika 39 saniyefolder of its own with scientific data in them. Also important are the publications. The ones marked in blue
+6:486 dakika 48 saniyeeach have their own DOI which can take you directly to the journal publication website where you can either read the
+6:566 dakika 56 saniyeentire publication or at least get an abstract. Hello everyone. My name is Yatin Leo.
+4. bölüm: Challenge goals and impact
+7:037 dakika 3 saniyeI'm an associate professor in the department of mechanical and aerospace engineering at Case Western Research University. I am a subject matter expert for the flame in freef fall challenge.
+7:167 dakika 16 saniyeOkay, this is the challenge for you [music] to build an SI powered web-based dashboard that summarizes ranks and
+7:247 dakika 24 saniyeinterprets the results of conduction investigations to deliver fire safety insights. [music] Your tool should enable users to first
+7:337 dakika 33 saniyeidentify investigations most relevant to [music] the fire safety needs of habitable crew environment. Second,
+7:407 dakika 40 saniyeextract data that supports predictive modeling of flammability and fire scenarios in space explorations.
+7:487 dakika 48 saniyeAnd third, highlight research that informs the development of next generation fire safety controls and equipment.
+7:577 dakika 57 saniyeHere is challenge [music] add-on for earth applications. Your dashboard could also address potential applications of the PSI data to fire [music] safety on Earth. Here are some examples.
+8:098 dakika 9 saniyeThe fine water mint extinguishers [music] originally developed for use on the ISS have practical application here
+8:168 dakika 16 saniye[music] on Earth. Similarly, some NASA technology has led to [music]
+8:218 dakika 21 saniyeimprovements in intellectual smoke detection and firefighter gear including protective closing air tank etc.
+8:308 dakika 30 saniyeTogether, [music] let's turn complex data into clear answers and make NASA's next giant leap a safer one.
+
