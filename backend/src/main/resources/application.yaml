@@ -22,4 +22,6 @@ spring:
 
 pyrosphere:
   rag-service-url: http://localhost:8000
+  rag-timeout-seconds: 120
   cors-allowed-origins: http://localhost:5173
+  public-docs-dir: ../data/public-docs
