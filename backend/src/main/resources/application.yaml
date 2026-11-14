@@ -5,7 +5,7 @@ spring:
   application:
     name: pyrosphere-backend
   datasource:
-    url: jdbc:postgresql://localhost:5432/pyrosphere
+    url: jdbc:postgresql://localhost:5433/pyrosphere
     username: pyrosphere
     password: pyrosphere_dev
   jpa:
