@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: pyrosphere-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5432/pyrosphere
+    username: pyrosphere
+    password: pyrosphere_dev
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: core
+  flyway:
+    enabled: true
+    schemas: core
+    default-schema: core
+    locations: classpath:db/migration
+
+pyrosphere:
+  rag-service-url: http://localhost:8000
+  rag-timeout-seconds: 120
+  cors-allowed-origins: http://localhost:5173
+  public-docs-dir: ../data/public-docs

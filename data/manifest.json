@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-14",
+  "description": "FlameScope/Pyrosphere kaynak envanteri. investigationId ve sourceId degerleri kalicidir; sourceId sonundaki v1 ekip ici kaynak surumudur.",
+  "etl": {
+    "order": ["PSI-69", "PSI-25", "PSI-101", "PSI-100"],
+    "excludedReason": "Agir .xlsx dosyalari ve kapsam disi CSV'ler sayisal aktarima katilmaz; envanterde izlenebilirlik icin tutulur.",
+    "idStrategy": "experimentId = <investigationId>:run-<4 haneli kalici sira>. Sira yalnizca yeni row_fingerprint goruldugunde artar; tekrar aktarimda mevcut kimlik korunur.",
+    "rowFingerprint": "sha256(investigationId|sourceId|sourceRowNumber|sourceTestId|tum ham hucre degerleri)"
+  },
+  "investigations": [
+    {
+      "investigationId": "PSI-69",
+      "name": "FLEX",
+      "description": "Flexible Laminar flame Experiment: mikro-yercekimi droplet yanma testleri (Methanol/Heptane).",
+      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS", "REPORTED_FINDINGS"],
+      "etlEnabled": true,
+      "sources": [
+        {
+          "sourceId": "PSI-69:experimental-table:v1",
+          "title": "PSI-69 Experimental table - FLEX",
+          "sourceType": "CSV",
+          "relativePath": "data/raw/Flex-1/PSI-69_Experimental table_FLEX.csv",
+          "documentUrl": "/files/PSI-69_Experimental%20table_FLEX.csv",
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": true,
+          "rowCount": 274,
+          "notes": [
+            "Yakit FLEX Test # alanindan sourceTestId olarak kullanilir.",
+            "'Burning rate; mm' basligi birim belirsizligi nedeniyle REQUIRES_REVIEW isaretlenir.",
+            "Basinc mmHg'den kPa'ya cevrilir; orijinal deger ve yontem saklanir."
+          ]
+        }
+      ]
+    },
+    {
+      "investigationId": "PSI-68",
+      "name": "FLEX-2",
+      "description": "FLEX-2 test matrisi: yakit, oksijen kesri, basinc ve akis kosul araliklari.",
+      "availableDataTypes": ["CONDITIONS"],
+      "etlEnabled": false,
+      "sources": [
+        {
+          "sourceId": "PSI-68:experimental-table:v1",
+          "title": "PSI-68 Experimental table - Flex2",
+          "sourceType": "CSV",
+          "relativePath": "data/raw/Flex-2/PSI-68_Experimental table_Flex2.csv",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": 8,
+          "notes": ["Kosul araliklarindan gerceklesmis test turetilmez; sayisal aktarim yapilmaz."]
+        }
+      ]
+    },
+    {
+      "investigationId": "PSI-26",
+      "name": "BASS",
+      "description": "Burning and Suppression of Solids (BASS) test kayitlari.",
+      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS"],
+      "etlEnabled": false,
+      "sources": [
+        {
+          "sourceId": "PSI-26:experimental-table:v1",
+          "title": "PSI-26 Experimental table - BASS",
+          "sourceType": "CSV",
+          "relativePath": "data/raw/BASS/PSI-26_Experimental table_BASS.csv",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": 122,
+          "notes": ["1.3 aktarim kapsaminda degil; sonraki surum icin envanterde tutulur."]
+        },
+        {
+          "sourceId": "PSI-26:test-matrix:v1",
+          "title": "BASS Test Matrix 050213",
+          "sourceType": "XLSX",
+          "relativePath": "data/raw/BASS/BASS Test Matrix 050213.xlsx",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": null,
+          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+        }
+      ]
+    },
+    {
+      "investigationId": "PSI-25",
+      "name": "BASS-II",
+      "description": "BASS-II test kayitlari: PMMA, Nomex, SIBAL ve rod numuneleri uzerinde alev yayilimi ve sondurme.",
+      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS"],
+      "etlEnabled": true,
+      "sources": [
+        {
+          "sourceId": "PSI-25:experimental-table:v1",
+          "title": "PSI-25 Experimental table - BASS-II",
+          "sourceType": "CSV",
+          "relativePath": "data/raw/BASS-2/PSI-25_Experimental table_BASS-II.csv",
+          "documentUrl": "/files/PSI-25_Experimental%20table_BASS-II.csv",
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": true,
+          "rowCount": 129,
+          "notes": [
+            "Test # alani sourceTestId olarak kullanilir (B1, F1, P21a ...).",
+            "Coklu deger iceren fan/air hucreleri tek sayisal degere zorlanmaz; CHANGING veya UNKNOWN + rawValue."
+          ]
+        },
+        {
+          "sourceId": "PSI-25:test-matrix:v1",
+          "title": "BASS-II Test Matrix by PI Final",
+          "sourceType": "XLSX",
+          "relativePath": "data/raw/BASS-2/BASS-II Test Matrix by PI Final.xlsx",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": null,
+          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+        },
+        {
+          "sourceId": "PSI-25:fan-calibration:v1",
+          "title": "BASS-II Fan calibration data",
+          "sourceType": "XLSX",
+          "relativePath": "data/raw/BASS-2/Fan calibration data.xlsx",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": null,
+          "notes": ["Kalibrasyon dosyasi; deney tablosu degildir."]
+        }
+      ]
+    },
+    {
+      "investigationId": "PSI-98",
+      "name": "Saffire-1",
+      "description": "Saffire-I uzay aracinda malzeme yanma testleri.",
+      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS", "REPORTED_FINDINGS"],
+      "etlEnabled": false,
+      "sources": [
+        {
+          "sourceId": "PSI-98:experimental-table:v1",
+          "title": "PSI-98 Experimental table - SAFFIRE-1",
+          "sourceType": "CSV",
+          "relativePath": "data/raw/Saffire-1/PSI-98_Experimental table_SAFFIRE-1.csv",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": 2,
+          "notes": ["Kapsam disi (1.3 aktarim listesi Saffire-3 ile sinirli)."]
+        },
+        {
+          "sourceId": "PSI-98:merge-result:v1",
+          "title": "SAFFIRE-1 MergeResult jpeg Update Final v2",
+          "sourceType": "XLSX",
+          "relativePath": "data/raw/Saffire-1/SAFFIRE-1_MergeResult-jpeg_Update_Final_v2.xlsx",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": null,
+          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+        }
+      ]
+    },
+    {
+      "investigationId": "PSI-99",
+      "name": "Saffire-2",
+      "description": "Saffire-II malzeme yanma testleri.",
+      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS", "REPORTED_FINDINGS"],
+      "etlEnabled": false,
+      "sources": [
+        {
+          "sourceId": "PSI-99:experimental-table:v1",
+          "title": "PSI-99 Experimental table - SAFFIRE-2",
+          "sourceType": "CSV",
+          "relativePath": "data/raw/Saffire-2/PSI-99_Experimental table_SAFFIRE-2.csv",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": 9,
+          "notes": [
+            "Kapsam disi.",
+            "'037 mm' gibi supheli kalinlik degerleri bu dosyada REQUIRES_REVIEW olurdu; aktarim yapilmaz."
+          ]
+        },
+        {
+          "sourceId": "PSI-99:merge-result:v1",
+          "title": "SAFFIRE-II MergeResult jpeg v5 Final",
+          "sourceType": "XLSX",
+          "relativePath": "data/raw/Saffire-2/SAFFIRE-II_MergeResult-jpeg_v5_Final.xlsx",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": null,
+          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+        }
+      ]
+    },
+    {
+      "investigationId": "PSI-100",
+      "name": "Saffire-3",
+      "description": "Saffire-III malzeme yanma testleri (SIBAL Fabric, Concurrent/Opposed akis).",
+      "availableDataTypes": ["CONDITIONS", "REPORTED_FINDINGS"],
+      "etlEnabled": true,
+      "sources": [
+        {
+          "sourceId": "PSI-100:experimental-table:v1",
+          "title": "PSI-100 Experimental table - SAFFIRE-3",
+          "sourceType": "CSV",
+          "relativePath": "data/raw/Saffire-3/PSI-100_Experimental table_SAFFIRE-3.csv",
+          "documentUrl": "/files/PSI-100_Experimental%20table_SAFFIRE-3.csv",
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": true,
+          "rowCount": 2,
+          "notes": [
+            "Sample Number sourceTestId olarak kullanilir.",
+            "Kalinlik/uzunluk/genislik cm'den mm'ye cevrilir; orijinal deger saklanir.",
+            "Bu tabloda sayisal yanma olcumu yok; yalnizca kosullar ve nitel yon bilgisi aktarilir."
+          ]
+        },
+        {
+          "sourceId": "PSI-100:merge-result-jpeg:v1",
+          "title": "SAFFIRE-III MergeResult jpeg Final",
+          "sourceType": "XLSX",
+          "relativePath": "data/raw/Saffire-3/SAFFIRE-III_MergeResult-jpeg_Final.xlsx",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": null,
+          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+        },
+        {
+          "sourceId": "PSI-100:merge-result-raw:v1",
+          "title": "SAFFIRE-III MergeResult raw Final",
+          "sourceType": "XLSX",
+          "relativePath": "data/raw/Saffire-3/SAFFIRE-III_MergeResult-raw_Final.xlsx",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": null,
+          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+        }
+      ]
+    },
+    {
+      "investigationId": "PSI-102",
+      "name": "SAME",
+      "description": "SAME malzeme yaslandirma testleri; 5-8 satirlari ayni kosullarin sablon tekraridir.",
+      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS"],
+      "etlEnabled": false,
+      "sources": [
+        {
+          "sourceId": "PSI-102:experimental-table:v1",
+          "title": "PSI-102 Experimental table - SAME",
+          "sourceType": "CSV",
+          "relativePath": "data/raw/SAME/PSI-102_Experimental table_SAME.csv",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": 8,
+          "notes": [
+            "Kapsam disi.",
+            "'same conditions as 1-4' satirlari sablon tekraridir; deney olarak aktarilmaz."
+          ]
+        }
+      ]
+    },
+    {
+      "investigationId": "PSI-101",
+      "name": "SAME-R",
+      "description": "SAME-R malzeme yaslandirma testleri (Kapton, Silicone, Lampwick, Teflon, Pyrell).",
+      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS", "REPORTED_FINDINGS"],
+      "etlEnabled": true,
+      "sources": [
+        {
+          "sourceId": "PSI-101:experimental-table:v1",
+          "title": "PSI-101 Experimental table - SAME-R",
+          "sourceType": "CSV",
+          "relativePath": "data/raw/SAME-R/PSI-101_Experimental table_SAME-R.csv",
+          "documentUrl": "/files/PSI-101_Experimental%20table_SAME-R.csv",
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": true,
+          "rowCount": 109,
+          "notes": [
+            "SAME Test # alani sourceTestId olarak kullanilir; 51 ve 51a ayri deneydir.",
+            "Date alaninda yil yok; date null, dateRaw korunur.",
+            "Description nitel bulgu olarak reportedFindings altina yazilir."
+          ]
+        },
+        {
+          "sourceId": "PSI-101:combined-results:v1",
+          "title": "Combined SAMER Results 06 02 14",
+          "sourceType": "XLSX",
+          "relativePath": "data/raw/SAME-R/Combined SAMER Results 06 02 14.xlsx",
+          "documentUrl": null,
+          "doi": null,
+          "originalUrl": null,
+          "etlEnabled": false,
+          "rowCount": null,
+          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+        }
+      ]
+    }
+  ]
+}
