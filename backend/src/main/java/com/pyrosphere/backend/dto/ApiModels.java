@@ -54,7 +54,8 @@ public final class ApiModels {
             String sourceTestId,
             String fuel,
             LocalDate date,
-            String reportedOutcome) {
+            String reportedOutcome,
+            String dateRaw) {
     }
 
     public record ExperimentPage(

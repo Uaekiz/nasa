@@ -10,7 +10,7 @@ from app.rag_config import RagError
 
 class ModelProfileTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        environment = patch.dict(os.environ, {"OLLAMA_EMBEDDING_MODEL": "qwen3-embedding:0.6b"})
+        environment = patch.dict(os.environ, {"OLLAMA_EMBEDDING_MODEL": "qwen3-embedding:0.6b", "RAG_CORPUS_MODE": "flex"})
         environment.start()
         self.addCleanup(environment.stop)
 

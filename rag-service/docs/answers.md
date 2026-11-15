@@ -1,5 +1,9 @@
 # FLEX answer endpoint
 
+The examples below describe legacy FLEX scope. The current multi-source mode,
+natural source sentences and explicit rejected-model fallback are documented in
+[the current report](../../docs/source-narrative-and-3d.md).
+
 `POST /rag/v1/answer` now calls `app.retrieval.run_retrieval` against the existing
 READY PostgreSQL/pgvector index. It never runs ingestion, embeds source rows, or
 writes index tables. Query embeddings are used only for semantic retrieval.
@@ -17,8 +21,9 @@ root, start the service in a terminal:
 ```
 
 An already running process must reload the edited modules before it serves the
-new behavior. For an isolated check while another server occupies port 8000,
-start this command with `--port 8001`, and point the checker at that port.
+new behavior. For a check while another server occupies port 8000, run
+`python -m app.multi_checks` from `rag-service`. This calls ASGI in-process with
+the real database and Ollama without starting another server.
 
 In a second terminal:
 
@@ -98,13 +103,16 @@ Generation is non-streaming, temperature zero, with an 8,192-token context and
 
 The service rejects missing/extra citation IDs, duplicate JSON keys, missing or
 extra fields and every cell string that differs from its cited original.
-It then renders concise English with original headings and values. Free model
+It then renders short English sentences from original values and explicit source
+unit mappings, citing every factual sentence. Free model
 prose is not accepted. This extractive format checks factual cell agreement,
 including numbers, rather than attempting to validate unrestricted prose after
-generation. Model mistakes produce a technical error, never a fabricated answer.
+generation. Rejected model output is replaced by a direct cited rendering of the
+original cells, explicitly labelled with `MODEL_OUTPUT_REJECTED`, `PARTIAL`,
+`modelTier: NONE` and `modelUsed: null`; no successful model prose is claimed.
 
-Original empty strings appear as `(empty source cell)`; dash markers and `~`
-qualifiers remain unchanged. Missing selected cells yield `PARTIAL` and a
+Original empty strings are explained as missing in natural language; nonempty
+missing markers are quoted and `~` qualifiers remain unchanged. Missing selected cells yield `PARTIAL` and a
 `SOURCE_MISSING_VALUE` warning. `Burning rate; mm` retains that literal heading
 and gets `AMBIGUOUS_SOURCE_UNIT`; `mm/s` is not inferred. Gas headings, mixed
 dates and source precision are not scientifically normalized.
@@ -128,8 +136,9 @@ request ID, `error.code`, English `message` and `details` codes:
 
 - HTTP 400 `VALIDATION_ERROR`: invalid request or question/filter.
 - HTTP 503 `RAG_UNAVAILABLE`: database, index or source-validation failure.
-- HTTP 503 `MODEL_UNAVAILABLE`: unreachable/rejected Ollama requests, invalid
-  embedding/chat responses, or failed generated-value/citation validation.
+- HTTP 503 `MODEL_UNAVAILABLE`: unreachable/rejected Ollama requests or invalid
+  embedding responses. Invalid chat content or generated-value/citation failures
+  use the explicit source-only fallback described above.
 - HTTP 504 `RAG_TIMEOUT`: database, embedding, chat or total request timeout.
 - HTTP 500 `INTERNAL_ERROR`: unexpected service failure.
 

@@ -3,7 +3,12 @@
   "generatedAt": "2026-11-14",
   "description": "FlameScope/Pyrosphere kaynak envanteri. investigationId ve sourceId degerleri kalicidir; sourceId sonundaki v1 ekip ici kaynak surumudur.",
   "etl": {
-    "order": ["PSI-69", "PSI-25", "PSI-101", "PSI-100"],
+    "order": [
+      "PSI-69",
+      "PSI-25",
+      "PSI-100",
+      "PSI-101"
+    ],
     "excludedReason": "Agir .xlsx dosyalari ve kapsam disi CSV'ler sayisal aktarima katilmaz; envanterde izlenebilirlik icin tutulur.",
     "idStrategy": "experimentId = <investigationId>:run-<4 haneli kalici sira>. Sira yalnizca yeni row_fingerprint goruldugunde artar; tekrar aktarimda mevcut kimlik korunur.",
     "rowFingerprint": "sha256(investigationId|sourceId|sourceRowNumber|sourceTestId|tum ham hucre degerleri)"
@@ -13,21 +18,25 @@
       "investigationId": "PSI-69",
       "name": "FLEX",
       "description": "Flexible Laminar flame Experiment: mikro-yercekimi droplet yanma testleri (Methanol/Heptane).",
-      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS", "REPORTED_FINDINGS"],
+      "availableDataTypes": [
+        "CONDITIONS",
+        "MEASUREMENTS",
+        "REPORTED_FINDINGS"
+      ],
       "etlEnabled": true,
       "sources": [
         {
           "sourceId": "PSI-69:experimental-table:v1",
           "title": "PSI-69 Experimental table - FLEX",
           "sourceType": "CSV",
-          "relativePath": "data/raw/Flex-1/PSI-69_Experimental table_FLEX.csv",
+          "relativePath": "databases/Flex-1/PSI-69_Experimental table_FLEX.csv",
           "documentUrl": "/files/PSI-69_Experimental%20table_FLEX.csv",
-          "doi": null,
-          "originalUrl": null,
+          "doi": "10.60555/mbq8-0451",
+          "originalUrl": "https://psi.nasa.gov/physci/repo/data/investigations/PSI-69",
           "etlEnabled": true,
           "rowCount": 274,
           "notes": [
-            "Yakit FLEX Test # alanindan sourceTestId olarak kullanilir.",
+            "FLEX Test # alani sourceTestId olarak kullanilir; ham hucreler cp1252 ile kayipsiz okunur.",
             "'Burning rate; mm' basligi birim belirsizligi nedeniyle REQUIRES_REVIEW isaretlenir.",
             "Basinc mmHg'den kPa'ya cevrilir; orijinal deger ve yontem saklanir."
           ]
@@ -38,7 +47,9 @@
       "investigationId": "PSI-68",
       "name": "FLEX-2",
       "description": "FLEX-2 test matrisi: yakit, oksijen kesri, basinc ve akis kosul araliklari.",
-      "availableDataTypes": ["CONDITIONS"],
+      "availableDataTypes": [
+        "CONDITIONS"
+      ],
       "etlEnabled": false,
       "sources": [
         {
@@ -51,7 +62,9 @@
           "originalUrl": null,
           "etlEnabled": false,
           "rowCount": 8,
-          "notes": ["Kosul araliklarindan gerceklesmis test turetilmez; sayisal aktarim yapilmaz."]
+          "notes": [
+            "Kosul araliklarindan gerceklesmis test turetilmez; sayisal aktarim yapilmaz."
+          ]
         }
       ]
     },
@@ -59,7 +72,10 @@
       "investigationId": "PSI-26",
       "name": "BASS",
       "description": "Burning and Suppression of Solids (BASS) test kayitlari.",
-      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS"],
+      "availableDataTypes": [
+        "CONDITIONS",
+        "MEASUREMENTS"
+      ],
       "etlEnabled": false,
       "sources": [
         {
@@ -72,7 +88,9 @@
           "originalUrl": null,
           "etlEnabled": false,
           "rowCount": 122,
-          "notes": ["1.3 aktarim kapsaminda degil; sonraki surum icin envanterde tutulur."]
+          "notes": [
+            "1.3 aktarim kapsaminda degil; sonraki surum icin envanterde tutulur."
+          ]
         },
         {
           "sourceId": "PSI-26:test-matrix:v1",
@@ -84,7 +102,9 @@
           "originalUrl": null,
           "etlEnabled": false,
           "rowCount": null,
-          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+          "notes": [
+            "Agir .xlsx; sayisal aktarima katilmaz."
+          ]
         }
       ]
     },
@@ -92,17 +112,20 @@
       "investigationId": "PSI-25",
       "name": "BASS-II",
       "description": "BASS-II test kayitlari: PMMA, Nomex, SIBAL ve rod numuneleri uzerinde alev yayilimi ve sondurme.",
-      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS"],
+      "availableDataTypes": [
+        "CONDITIONS",
+        "MEASUREMENTS"
+      ],
       "etlEnabled": true,
       "sources": [
         {
           "sourceId": "PSI-25:experimental-table:v1",
           "title": "PSI-25 Experimental table - BASS-II",
           "sourceType": "CSV",
-          "relativePath": "data/raw/BASS-2/PSI-25_Experimental table_BASS-II.csv",
+          "relativePath": "data/public-docs/PSI-25_Experimental table_BASS-II.csv",
           "documentUrl": "/files/PSI-25_Experimental%20table_BASS-II.csv",
-          "doi": null,
-          "originalUrl": null,
+          "doi": "10.60555/4qc4-de67",
+          "originalUrl": "https://psi.nasa.gov/physci/repo/data/investigations/PSI-25",
           "etlEnabled": true,
           "rowCount": 129,
           "notes": [
@@ -114,13 +137,15 @@
           "sourceId": "PSI-25:test-matrix:v1",
           "title": "BASS-II Test Matrix by PI Final",
           "sourceType": "XLSX",
-          "relativePath": "data/raw/BASS-2/BASS-II Test Matrix by PI Final.xlsx",
-          "documentUrl": null,
-          "doi": null,
-          "originalUrl": null,
-          "etlEnabled": false,
-          "rowCount": null,
-          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+          "relativePath": "rag-service/data/documents/bass_ii_workbook.xlsx",
+          "documentUrl": "/files/bass_ii_workbook.xlsx",
+          "doi": "10.60555/4qc4-de67",
+          "originalUrl": "https://psi.nasa.gov/physci/repo/data/investigations/PSI-25",
+          "etlEnabled": true,
+          "rowCount": 129,
+          "notes": [
+            "Independent workbook rows. Link by verified test ID and PI; do not overwrite CSV values or create duplicate experiments."
+          ]
         },
         {
           "sourceId": "PSI-25:fan-calibration:v1",
@@ -132,7 +157,9 @@
           "originalUrl": null,
           "etlEnabled": false,
           "rowCount": null,
-          "notes": ["Kalibrasyon dosyasi; deney tablosu degildir."]
+          "notes": [
+            "Kalibrasyon dosyasi; deney tablosu degildir."
+          ]
         }
       ]
     },
@@ -140,7 +167,11 @@
       "investigationId": "PSI-98",
       "name": "Saffire-1",
       "description": "Saffire-I uzay aracinda malzeme yanma testleri.",
-      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS", "REPORTED_FINDINGS"],
+      "availableDataTypes": [
+        "CONDITIONS",
+        "MEASUREMENTS",
+        "REPORTED_FINDINGS"
+      ],
       "etlEnabled": false,
       "sources": [
         {
@@ -153,7 +184,9 @@
           "originalUrl": null,
           "etlEnabled": false,
           "rowCount": 2,
-          "notes": ["Kapsam disi (1.3 aktarim listesi Saffire-3 ile sinirli)."]
+          "notes": [
+            "Kapsam disi (1.3 aktarim listesi Saffire-3 ile sinirli)."
+          ]
         },
         {
           "sourceId": "PSI-98:merge-result:v1",
@@ -165,7 +198,9 @@
           "originalUrl": null,
           "etlEnabled": false,
           "rowCount": null,
-          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+          "notes": [
+            "Agir .xlsx; sayisal aktarima katilmaz."
+          ]
         }
       ]
     },
@@ -173,7 +208,11 @@
       "investigationId": "PSI-99",
       "name": "Saffire-2",
       "description": "Saffire-II malzeme yanma testleri.",
-      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS", "REPORTED_FINDINGS"],
+      "availableDataTypes": [
+        "CONDITIONS",
+        "MEASUREMENTS",
+        "REPORTED_FINDINGS"
+      ],
       "etlEnabled": false,
       "sources": [
         {
@@ -201,7 +240,9 @@
           "originalUrl": null,
           "etlEnabled": false,
           "rowCount": null,
-          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+          "notes": [
+            "Agir .xlsx; sayisal aktarima katilmaz."
+          ]
         }
       ]
     },
@@ -209,17 +250,20 @@
       "investigationId": "PSI-100",
       "name": "Saffire-3",
       "description": "Saffire-III malzeme yanma testleri (SIBAL Fabric, Concurrent/Opposed akis).",
-      "availableDataTypes": ["CONDITIONS", "REPORTED_FINDINGS"],
+      "availableDataTypes": [
+        "CONDITIONS",
+        "REPORTED_FINDINGS"
+      ],
       "etlEnabled": true,
       "sources": [
         {
           "sourceId": "PSI-100:experimental-table:v1",
           "title": "PSI-100 Experimental table - SAFFIRE-3",
           "sourceType": "CSV",
-          "relativePath": "data/raw/Saffire-3/PSI-100_Experimental table_SAFFIRE-3.csv",
+          "relativePath": "data/public-docs/PSI-100_Experimental table_SAFFIRE-3.csv",
           "documentUrl": "/files/PSI-100_Experimental%20table_SAFFIRE-3.csv",
-          "doi": null,
-          "originalUrl": null,
+          "doi": "10.60555/040q-4h36",
+          "originalUrl": "https://psi.nasa.gov/physci/repo/data/investigations/PSI-100",
           "etlEnabled": true,
           "rowCount": 2,
           "notes": [
@@ -238,7 +282,9 @@
           "originalUrl": null,
           "etlEnabled": false,
           "rowCount": null,
-          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+          "notes": [
+            "Agir .xlsx; sayisal aktarima katilmaz."
+          ]
         },
         {
           "sourceId": "PSI-100:merge-result-raw:v1",
@@ -250,7 +296,9 @@
           "originalUrl": null,
           "etlEnabled": false,
           "rowCount": null,
-          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+          "notes": [
+            "Agir .xlsx; sayisal aktarima katilmaz."
+          ]
         }
       ]
     },
@@ -258,7 +306,10 @@
       "investigationId": "PSI-102",
       "name": "SAME",
       "description": "SAME malzeme yaslandirma testleri; 5-8 satirlari ayni kosullarin sablon tekraridir.",
-      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS"],
+      "availableDataTypes": [
+        "CONDITIONS",
+        "MEASUREMENTS"
+      ],
       "etlEnabled": false,
       "sources": [
         {
@@ -282,17 +333,21 @@
       "investigationId": "PSI-101",
       "name": "SAME-R",
       "description": "SAME-R malzeme yaslandirma testleri (Kapton, Silicone, Lampwick, Teflon, Pyrell).",
-      "availableDataTypes": ["CONDITIONS", "MEASUREMENTS", "REPORTED_FINDINGS"],
+      "availableDataTypes": [
+        "CONDITIONS",
+        "MEASUREMENTS",
+        "REPORTED_FINDINGS"
+      ],
       "etlEnabled": true,
       "sources": [
         {
           "sourceId": "PSI-101:experimental-table:v1",
           "title": "PSI-101 Experimental table - SAME-R",
           "sourceType": "CSV",
-          "relativePath": "data/raw/SAME-R/PSI-101_Experimental table_SAME-R.csv",
+          "relativePath": "data/public-docs/PSI-101_Experimental table_SAME-R.csv",
           "documentUrl": "/files/PSI-101_Experimental%20table_SAME-R.csv",
-          "doi": null,
-          "originalUrl": null,
+          "doi": "10.60555/2np7-jv14",
+          "originalUrl": "https://psi.nasa.gov/physci/repo/data/investigations/PSI-101",
           "etlEnabled": true,
           "rowCount": 109,
           "notes": [
@@ -311,7 +366,9 @@
           "originalUrl": null,
           "etlEnabled": false,
           "rowCount": null,
-          "notes": ["Agir .xlsx; sayisal aktarima katilmaz."]
+          "notes": [
+            "Agir .xlsx; sayisal aktarima katilmaz."
+          ]
         }
       ]
     }

@@ -13,10 +13,19 @@ from .ollama_client import OLLAMA_BASE_URL
 QUERY_INSTRUCTION = "Given a question about NASA FLEX tests, retrieve original test records that directly address it."
 DOCUMENT_FORMAT = "flex-raw-evidence-text-v1"
 SCHEMA_VERSION = 1
+MULTI_QUERY_INSTRUCTION = "Given a question about the selected NASA PSI investigation and source, retrieve original source rows that directly address it."
 
 
-def format_query(question: str) -> str:
-    return f"Instruct: {QUERY_INSTRUCTION}\nQuery:{question}"
+def expected_profile(model, digest, dimensions, *, schema_version=None):
+    if schema_version not in (None, 1, 2):
+        raise RagError("INCOMPATIBLE_INDEX", "Unrecognized index schema version")
+    if schema_version == 2 or (schema_version is None and os.getenv("RAG_CORPUS_MODE", "flex") == "multi"):
+        return ModelProfile(model, digest, dimensions, "nasa-source-evidence-v2", MULTI_QUERY_INSTRUCTION, 2)
+    return ModelProfile(model, digest, dimensions)
+
+
+def format_query(question: str, profile=None) -> str:
+    return f"Instruct: {profile.query_instruction if profile else QUERY_INSTRUCTION}\nQuery:{question}"
 
 
 @dataclass(frozen=True)
@@ -75,7 +84,7 @@ async def get_model_profile(client: httpx.AsyncClient) -> ModelProfile:
         raise RagError("INVALID_MODEL_RESPONSE", "Ollama did not report valid embedding dimensions.")
     if not isinstance(details.get("capabilities"), list) or "embedding" not in details["capabilities"]:
         raise RagError("UNSUPPORTED_MODEL", "The configured model does not advertise embedding support.")
-    return ModelProfile(tag["name"], tag["digest"], dimensions)
+    return expected_profile(tag["name"], tag["digest"], dimensions)
 
 
 async def verify_model_identity(profile: ModelProfile, client: httpx.AsyncClient) -> None:

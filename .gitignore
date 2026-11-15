@@ -3,3 +3,4 @@ data/raw/
 data/etl/.venv/
 backend/target/
 .env
+__pycache__/

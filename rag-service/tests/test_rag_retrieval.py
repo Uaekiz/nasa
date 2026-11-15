@@ -96,7 +96,7 @@ class RetrievalRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.code, "CORRUPT_INDEX")
 
     def test_actual_repeated_flex_identifier_routes_deterministically(self):
-        corpus = load_corpus()
+        corpus = load_corpus(mode="flex")
         plan = plan_query("Show FLEX Identifier 193F001.", corpus)
         self.assertEqual(plan.route, "EXACT_ID")
         self.assertEqual(plan.filters["flex_identifiers"], ["193F001"])

@@ -4,8 +4,8 @@ import { NASA_PALETTE } from "../theme/nasaPalette";
 const clamp = (val, min, max) => Math.min(max, Math.max(min, val));
 
 /**
- * Evaluates spacecraft/habitat environmental telemetry using microgravity combustion
- * physics calibrated against NASA PSI datasets (BASS-II, SAFFIRE I-III, FLEX, SAME-R).
+ * Heuristic demonstration model for simulation inputs. Its output is not a
+ * source measurement or a validated probability derived from imported experiments.
  */
 export function evaluateFireRisk(params) {
   const {

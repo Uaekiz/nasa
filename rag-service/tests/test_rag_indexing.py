@@ -113,7 +113,7 @@ class IndexRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
 class CorpusAndSqlSafetyTests(unittest.TestCase):
     def test_actual_corpus_is_validated_and_duplicate_flex_identifiers_remain_distinct(self):
-        corpus = load_corpus()
+        corpus = load_corpus(mode="flex")
         self.assertEqual(len(corpus.records), 274)
         repeated = [record for record in corpus.records if record["fields"]["FLEX Identifier"] == "193F001"]
         self.assertEqual({record["sourceTestId"] for record in repeated}, {"70", "73"})

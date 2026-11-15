@@ -11,7 +11,8 @@ from psycopg.types.json import Jsonb
 
 from .rag_config import APP_DATABASE, APP_ROLE, DatabaseSettings, RagError
 from .rag_corpus import Corpus, content_hash, record_key, text_hash
-from .model_profile import ModelProfile
+from .model_profile import ModelProfile, expected_profile
+from .source_catalog import field_value
 
 
 SCHEMA_MARKER = "PyroSphere RAG evidence store; schema version 1"
@@ -54,6 +55,7 @@ def filter_clause(filters: dict) -> tuple[sql.Composed, list]:
     columns = {
         "source_ids": "source_id", "investigation_ids": "investigation_id",
         "test_ids": "source_test_id", "flex_identifiers": "flex_identifier",
+        "sheet_names": "sheet_name",
     }
     if set(filters) - (set(columns) | {"fuel", "outcome"}):
         raise RagError("INVALID_FILTER", "An unsupported retrieval filter was supplied.")
@@ -77,7 +79,7 @@ def open_store(settings: DatabaseSettings):
             application_name="pyrosphere-rag", options="-c statement_timeout=30000 -c lock_timeout=5000",
         ) as connection:
             verify_application_identity(connection)
-            yield PgVectorStore(connection, settings.schema)
+            yield PgVectorStore(connection, settings.schema, settings.index_name)
     except (psycopg.errors.QueryCanceled, psycopg.errors.ConnectionTimeout) as error:
         raise RagError("DATABASE_TIMEOUT", "The PostgreSQL connection or RAG query timed out.") from error
     except psycopg.errors.LockNotAvailable as error:
@@ -96,13 +98,17 @@ def open_store(settings: DatabaseSettings):
 
 
 class PgVectorStore:
-    def __init__(self, connection, schema: str):
+    def __init__(self, connection, schema: str, index_name="legacy"):
         # Validate even when constructed directly by an integration test.
-        DatabaseSettings("validated-connection", schema)
+        DatabaseSettings("validated-connection", schema, index_name)
         self.connection = connection
         self.schema = schema
-        self.state_table = sql.Identifier(schema, "index_state")
-        self.records_table = sql.Identifier(schema, "evidence_records")
+        self.index_name = index_name
+        suffix = "" if index_name == "legacy" else "_" + index_name
+        self.state_table_name = "index_state" + suffix
+        self.records_table_name = "evidence_records" + suffix
+        self.state_table = sql.Identifier(schema, self.state_table_name)
+        self.records_table = sql.Identifier(schema, self.records_table_name)
         self.vector_namespace = None
         self.profile = None
 
@@ -110,7 +116,7 @@ class PgVectorStore:
     def lock(self, *, shared: bool = False):
         acquire = sql.SQL("pg_try_advisory_lock_shared" if shared else "pg_try_advisory_lock")
         release = sql.SQL("pg_advisory_unlock_shared" if shared else "pg_advisory_unlock")
-        key = f"pyrosphere-rag:{self.schema}"
+        key = f"pyrosphere-rag:{self.schema}" + ("" if self.index_name == "legacy" else f":{self.index_name}")
         result = self.connection.execute(
             sql.SQL("SELECT {}(hashtextextended(%s, 0)) AS acquired").format(acquire), (key,)
         ).fetchone()
@@ -172,10 +178,13 @@ class PgVectorStore:
                 )
             else:
                 self.assert_configuration(state, profile)
+            sheet_definition = sql.SQL("sheet_name text NOT NULL DEFAULT '',") if profile.schema_version >= 2 else sql.SQL("")
+            sheet_key = sql.SQL("sheet_name,") if profile.schema_version >= 2 else sql.SQL("")
             self.connection.execute(sql.SQL("""
                 CREATE TABLE IF NOT EXISTS {records} (
                     index_id smallint NOT NULL DEFAULT 1 REFERENCES {state}(id),
                     source_id text NOT NULL,
+                    {sheet_definition}
                     row_number integer NOT NULL CHECK (row_number >= 2),
                     investigation_id text NOT NULL,
                     source_test_id text NOT NULL,
@@ -188,24 +197,25 @@ class PgVectorStore:
                     text_hash text NOT NULL,
                     embedding {vector_type}({dimensions}) NOT NULL,
                     updated_at timestamptz NOT NULL DEFAULT now(),
-                    PRIMARY KEY (index_id, source_id, row_number)
+                    PRIMARY KEY (index_id, source_id, {sheet_key} row_number)
                 )
             """).format(
                 records=self.records_table, state=self.state_table,
                 vector_type=sql.Identifier(self.vector_namespace, "vector"), dimensions=sql.Literal(profile.dimensions),
+                sheet_definition=sheet_definition, sheet_key=sheet_key,
             ))
             column = self.connection.execute(
                 "SELECT a.atttypmod AS dimensions, t.typname FROM pg_attribute a "
                 "JOIN pg_type t ON t.oid = a.atttypid "
                 "WHERE a.attrelid = to_regclass(%s) AND a.attname = 'embedding' AND NOT a.attisdropped",
-                (f"{self.schema}.evidence_records",),
+                (f"{self.schema}.{self.records_table_name}",),
             ).fetchone()
             if column is None or column["dimensions"] != profile.dimensions or column["typname"] != "vector":
                 raise RagError("INCOMPATIBLE_INDEX", "The stored vector column has incompatible dimensions or type.")
             self.connection.execute(sql.SQL(
-                "CREATE INDEX IF NOT EXISTS evidence_source_filters ON {} "
+                "CREATE INDEX IF NOT EXISTS {index} ON {records} "
                 "(index_id, source_id, investigation_id, fuel, source_test_id)"
-            ).format(self.records_table))
+            ).format(index=sql.Identifier("evidence_source_filters" + ("" if self.index_name == "legacy" else "_" + self.index_name)), records=self.records_table))
         self.profile = profile
 
     def state(self) -> dict | None:
@@ -224,7 +234,7 @@ class PgVectorStore:
         rows = self.connection.execute(sql.SQL(
             "SELECT source_id, row_number, content_hash, text_hash, record FROM {} WHERE index_id = 1"
         ).format(self.records_table)).fetchall()
-        return {(row["source_id"], row["row_number"]): row for row in rows}
+        return {record_key(row["record"]): row for row in rows}
 
     def begin_snapshot(self, corpus: Corpus):
         self.connection.execute(sql.SQL(
@@ -238,15 +248,21 @@ class PgVectorStore:
                 vector = vectors.get(record_key(record))
                 values = (
                     record["investigationId"], record["sourceTestId"], record["sourceFile"],
-                    record["fields"]["Fuel"], record["fields"]["FLEX Identifier"], record["fields"]["Test end"],
+                    " ".join(field_value(record, "fuel").split()), field_value(record, "identifier"), field_value(record, "outcome"),
                     Jsonb(record), content_hash(record), text_hash(record), record["sourceId"], record["rowNumber"],
                 )
+                multi = self.profile.schema_version >= 2
+                sheet_column = sql.SQL(", sheet_name") if multi else sql.SQL("")
+                sheet_parameter = sql.SQL(", %s") if multi else sql.SQL("")
+                sheet_condition = sql.SQL(" AND sheet_name=%s") if multi else sql.SQL("")
+                if multi:
+                    values = (*values, record.get("sheetName", ""))
                 if vector is None:
-                    result = self.connection.execute(sql.SQL(
+                    result = self.connection.execute((sql.SQL(
                         "UPDATE {} SET investigation_id=%s, source_test_id=%s, source_file=%s, fuel=%s, "
                         "flex_identifier=%s, reported_outcome=%s, record=%s, content_hash=%s, text_hash=%s, "
                         "updated_at=now() WHERE index_id=1 AND source_id=%s AND row_number=%s"
-                    ).format(self.records_table), values)
+                    ) + sheet_condition).format(self.records_table), values)
                     if result.rowcount != 1:
                         raise RagError("CORRUPT_INDEX", "An embedding selected for reuse is missing.")
                 else:
@@ -254,25 +270,23 @@ class PgVectorStore:
                     self.connection.execute(sql.SQL("""
                         INSERT INTO {records} (
                             investigation_id, source_test_id, source_file, fuel, flex_identifier,
-                            reported_outcome, record, content_hash, text_hash, source_id, row_number, embedding
-                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::{vector_type})
-                        ON CONFLICT (index_id, source_id, row_number) DO UPDATE SET
+                            reported_outcome, record, content_hash, text_hash, source_id, row_number{sheet_column}, embedding
+                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s{sheet_parameter},%s::{vector_type})
+                        ON CONFLICT (index_id, source_id, row_number{sheet_column}) DO UPDATE SET
                             investigation_id=EXCLUDED.investigation_id, source_test_id=EXCLUDED.source_test_id,
                             source_file=EXCLUDED.source_file, fuel=EXCLUDED.fuel,
                             flex_identifier=EXCLUDED.flex_identifier, reported_outcome=EXCLUDED.reported_outcome,
                             record=EXCLUDED.record, content_hash=EXCLUDED.content_hash,
                             text_hash=EXCLUDED.text_hash, embedding=EXCLUDED.embedding, updated_at=now()
-                    """).format(records=self.records_table, vector_type=sql.Identifier(self.vector_namespace, "vector")),
+                    """).format(records=self.records_table, vector_type=sql.Identifier(self.vector_namespace, "vector"),
+                        sheet_column=sheet_column, sheet_parameter=sheet_parameter),
                         (*values, literal),
                     )
 
     def finish_snapshot(self, corpus: Corpus):
         with self.connection.transaction():
-            self.connection.execute(sql.SQL(
-                "DELETE FROM {} WHERE index_id=1 AND (source_id <> %s OR NOT (row_number = ANY(%s)))"
-            ).format(self.records_table), (
-                corpus.manifest["sourceId"], [record["rowNumber"] for record in corpus.records],
-            ))
+            # Source removal is never implicit. A partial/shrinking snapshot fails
+            # before indexing; this final check also refuses unexpected persisted rows.
             cache = self.cache()
             if set(cache) != set(corpus.by_key) or any(
                 cache[record_key(record)]["record"] != record
@@ -288,7 +302,7 @@ class PgVectorStore:
     def ready(self, corpus: Corpus) -> dict:
         self._owned_schema(create=False)
         self._extension()
-        exists = self.connection.execute("SELECT to_regclass(%s) AS name", (f"{self.schema}.index_state",)).fetchone()
+        exists = self.connection.execute("SELECT to_regclass(%s) AS name", (f"{self.schema}.{self.state_table_name}",)).fetchone()
         if exists["name"] is None:
             raise RagError("INDEX_NOT_READY", "The RAG schema has no initialized index.")
         state = self.state()
@@ -303,7 +317,7 @@ class PgVectorStore:
             self.profile = ModelProfile(**state["configuration"])
         except (TypeError, ValueError) as error:
             raise RagError("INCOMPATIBLE_INDEX", "Index configuration is not recognized.") from error
-        self.assert_configuration(state, ModelProfile(self.profile.model, self.profile.digest, self.profile.dimensions))
+        self.assert_configuration(state, expected_profile(self.profile.model, self.profile.digest, self.profile.dimensions, schema_version=self.profile.schema_version))
         if self.candidate_count({}) != len(corpus.records):
             raise RagError("INDEX_NOT_READY", "Stored record count is incomplete; rerun the indexer.")
         return state

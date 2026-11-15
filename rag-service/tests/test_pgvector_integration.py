@@ -92,7 +92,7 @@ class PgVectorIntegrationTests(unittest.TestCase):
         self.assertEqual(self.store.search({"investigation_ids": ["PSI-25"]}, [1, 1, 0]), [])
 
     def test_actual_csv_records_round_trip_without_merging_shared_flex_identifier(self):
-        corpus = load_corpus()
+        corpus = load_corpus(mode="flex")
         selected = [record for record in corpus.records if record["sourceTestId"] in {"24", "70", "73"}]
         from app.rag_corpus import Corpus, content_hash
         subset = Corpus(deepcopy(selected), corpus.manifest, content_hash(selected))

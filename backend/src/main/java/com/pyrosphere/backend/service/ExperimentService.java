@@ -72,7 +72,7 @@ public class ExperimentService {
 
         List<ExperimentSummary> items = jdbc.sql("""
                         SELECT experiment_id, investigation_id, source_test_id, fuel,
-                               experiment_date, reported_outcome
+                               experiment_date, reported_outcome, date_raw
                         FROM core.experiments
                         """ + where + " ORDER BY experiment_id ASC LIMIT :limit OFFSET :offset")
                 .params(params)
@@ -84,7 +84,8 @@ public class ExperimentService {
                         rs.getString("source_test_id"),
                         rs.getString("fuel"),
                         rs.getObject("experiment_date", LocalDate.class),
-                        rs.getString("reported_outcome")))
+                        rs.getString("reported_outcome"),
+                        rs.getString("date_raw")))
                 .list();
 
         int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / size);

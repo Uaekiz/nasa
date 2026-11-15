@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as echarts from "echarts";
 import { NASA_PALETTE } from "../theme/nasaPalette";
-import { EXPERIMENTS_DATA } from "../data/nasaPsiData";
 
 /**
  * Reusable ECharts wrapper hook/component with ResizeObserver cleanup.
@@ -60,7 +59,6 @@ export default function TelemetryCharts({
   params,
   mitigationPlan,
   timelineData,
-  onSelectPsiPoint,
 }) {
   const [rightChartMode, setRightChartMode] = useState("phase"); // "phase" | "factors"
   const { baseline, optimizedProbability, combinedPatch, recommendations } =
@@ -187,20 +185,9 @@ export default function TelemetryCharts({
     ],
   };
 
-  // 2A. ECharts Option: NASA PSI Flammability Phase Diagram (O2 % vs Airflow cm/s)
+  // 2A. Simulation inputs and the heuristic model target; no source experiment points.
   const targetFlow = combinedPatch.airflowCmS ?? params.airflowCmS;
   const targetO2 = combinedPatch.oxygenPercent ?? params.oxygenPercent;
-
-  const psiScatterData = EXPERIMENTS_DATA.map((exp) => ({
-    name: `${exp.investigationId} (${exp.sourceTestId})`,
-    value: [
-      exp.simulationParams.airflowCmS,
-      exp.simulationParams.oxygenPercent,
-      exp.fuel,
-      exp.reportedOutcome,
-      exp.experimentId,
-    ],
-  }));
 
   const phaseDiagramOption = {
     backgroundColor: "transparent",
@@ -210,16 +197,6 @@ export default function TelemetryCharts({
       borderColor: NASA_PALETTE.electricBlue.hex,
       textStyle: { color: NASA_PALETTE.white.hex, fontSize: 12 },
       formatter: (p) => {
-        if (p.seriesName === "NASA PSI Deneyleri") {
-          const [flow, o2, fuel, outcome] = p.value;
-          return [
-            `<strong>${p.name}</strong>`,
-            `Materyal: <b>${fuel}</b>`,
-            `Koşul: <b>${flow} cm/s</b> | <b>%${o2} O₂</b>`,
-            `Sonuç: <b>${outcome}</b>`,
-            `<span style="color:${NASA_PALETTE.neonYellow.hex}">Simülasyona yüklemek için tıklayın</span>`,
-          ].join("<br/>");
-        }
         return `<strong>${p.seriesName}</strong><br/>Akış: <b>${p.value[0]} cm/s</b> | O₂: <b>%${p.value[1]}</b>`;
       },
     },
@@ -273,49 +250,7 @@ export default function TelemetryCharts({
     },
     series: [
       {
-        name: "NASA PSI Deneyleri",
-        type: "scatter",
-        symbolSize: 10,
-        data: psiScatterData,
-        itemStyle: {
-          color: NASA_PALETTE.electricBlue.hex,
-          borderColor: NASA_PALETTE.white.hex,
-          borderWidth: 1.5,
-        },
-        markArea: {
-          silent: true,
-          data: [
-            [
-              {
-                name: "Sönme (Quenching) Zarfı",
-                yAxis: 12,
-                itemStyle: { color: "rgba(46, 150, 245, 0.10)" },
-                label: {
-                  color: NASA_PALETTE.electricBlue.hex,
-                  fontSize: 10,
-                  position: "insideBottomRight",
-                },
-              },
-              { yAxis: 17.5 },
-            ],
-            [
-              {
-                name: "Hiperoksik Kritik Bölge",
-                yAxis: 25,
-                itemStyle: { color: "rgba(228, 55, 0, 0.09)" },
-                label: {
-                  color: NASA_PALETTE.martianRed.hex,
-                  fontSize: 10,
-                  position: "insideTopRight",
-                },
-              },
-              { yAxis: 38 },
-            ],
-          ],
-        },
-      },
-      {
-        name: "Aktif Telemetri Noktası",
+        name: "Aktif Simülasyon Noktası",
         type: "effectScatter",
         symbolSize: 15,
         rippleEffect: { brushType: "stroke", scale: 3.2 },
@@ -328,7 +263,7 @@ export default function TelemetryCharts({
         },
       },
       {
-        name: "AI Güvenli Hedef",
+        name: "Model Hedefi",
         type: "scatter",
         symbol: "diamond",
         symbolSize: 15,
@@ -423,16 +358,6 @@ export default function TelemetryCharts({
     ],
   };
 
-  const handleScatterClick = (chartEvent) => {
-    if (chartEvent?.seriesName === "NASA PSI Deneyleri") {
-      const expId = chartEvent.value?.[4];
-      const found = EXPERIMENTS_DATA.find((e) => e.experimentId === expId);
-      if (found && onSelectPsiPoint) {
-        onSelectPsiPoint(found);
-      }
-    }
-  };
-
   return (
     <div className="charts-grid-2col">
       {/* CHART 1: ECHARTS TIME-SERIES TELEMETRY & AI RISK TRAJECTORY */}
@@ -440,7 +365,7 @@ export default function TelemetryCharts({
         <div className="chart-panel-header">
           <div>
             <span className="section-eyebrow">
-              ECHARTS // ZAMAN SERİSİ TELEMETRİ PROJEKSİYONU
+              SİMÜLASYON // ZAMAN SERİSİ PROJEKSİYONU
             </span>
             <h4>Müdahalesiz Seyir vs. AI Önlemleri Sonrası Yangın İhtimali</h4>
           </div>
@@ -461,7 +386,7 @@ export default function TelemetryCharts({
             </span>
             <h4>
               {rightChartMode === "phase"
-                ? "NASA PSI Yanıcılık Faz Haritası (O₂ % vs. Hava Akışı)"
+                ? "Simülasyon Koşulları (O₂ % vs. Hava Akışı)"
                 : "AI Önlemlerinin Kademeli Risk Düşürme Etkisi"}
             </h4>
           </div>
@@ -491,7 +416,6 @@ export default function TelemetryCharts({
         {rightChartMode === "phase" ? (
           <EChartContainer
             option={phaseDiagramOption}
-            onPointClick={handleScatterClick}
             height={275}
           />
         ) : (

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
+import os
 
 from .rag_config import BASE_DIR, RagError
 from .csv_loader import CsvIngestionError, extract_records
@@ -22,7 +23,9 @@ def text_hash(record: dict) -> str:
     return hashlib.sha256(record["text"].encode("utf-8")).hexdigest()
 
 
-def record_key(record: dict) -> tuple[str, int]:
+def record_key(record: dict) -> tuple:
+    if record.get("sheetName") is not None:
+        return record["sourceId"], record["sheetName"], record["rowNumber"]
     return record["sourceId"], record["rowNumber"]
 
 
@@ -33,11 +36,22 @@ class Corpus:
     fingerprint: str
 
     @property
-    def by_key(self) -> dict[tuple[str, int], dict]:
+    def by_key(self) -> dict[tuple, dict]:
         return {record_key(record): record for record in self.records}
 
 
-def load_corpus() -> Corpus:
+def load_corpus(*, mode=None) -> Corpus:
+    if (mode or os.getenv("RAG_CORPUS_MODE", "flex")) == "multi":
+        from .source_catalog import load_catalog, read_all_sources
+        try:
+            manifest = load_catalog()
+            original_records = read_all_sources(manifest)
+            records = json.loads((BASE_DIR / manifest["evidenceFile"]).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise RagError("INVALID_EVIDENCE", "Cannot validate the multi-source snapshot against its pinned original files.") from error
+        if records != original_records or len({record_key(r) for r in records}) != len(records):
+            raise RagError("INVALID_EVIDENCE", "Multi-source evidence differs from the complete original-source snapshot.")
+        return Corpus(records, manifest, content_hash({"manifest": manifest, "records": records}))
     try:
         records = json.loads(EVIDENCE_PATH.read_text(encoding="utf-8"))
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))

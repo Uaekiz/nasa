@@ -1,467 +1,152 @@
-import { useEffect, useState } from "react";
-import {
-  fetchInvestigations,
-  fetchExperiments,
-  compareExperiments,
-} from "../services/apiClient";
-import { evaluateFireRisk } from "../services/fireRiskEngine";
-import { NASA_PALETTE } from "../theme/nasaPalette";
+import { useCallback, useState } from "react";
+import { fetchInvestigations, fetchExperiments, fetchExperiment, compareExperiments } from "../services/apiClient";
+import { comparisonRows, measurementText, experimentDate } from "../services/experimentData";
+import useApiResource from "../hooks/useApiResource";
+import SourceCard from "./SourceCard";
+import ExperimentSourceView from "./ExperimentSourceView";
 
-export default function ExperimentExplorer({ onLoadExperimentIntoSim }) {
-  const [investigations, setInvestigations] = useState([]);
-  const [selectedInv, setSelectedInv] = useState("");
-  const [selectedFuel, setSelectedFuel] = useState("");
-  const [experimentsPage, setExperimentsPage] = useState({
-    items: [],
-    totalElements: 0,
-  });
-  const [compareIds, setCompareIds] = useState([
-    "PSI-25:run-0008",
-    "PSI-25:run-0014",
-    "PSI-98:run-0001",
-  ]);
-  const [comparisonResult, setComparisonResult] = useState(null);
-  const [activeDetailExp, setActiveDetailExp] = useState(null);
+function Warnings({ warnings = [] }) {
+  return warnings.length > 0 && <div className="warnings-box">{warnings.map((warning, index) => (
+    <p key={`${warning.code}-${index}`}><strong>{warning.code}</strong>: {warning.message}</p>
+  ))}</div>;
+}
 
-  useEffect(() => {
-    fetchInvestigations().then(setInvestigations);
-  }, []);
+function ErrorMessage({ error, retry }) {
+  return <div role="alert" className="warnings-box">
+    {error.code && `${error.code}: `}{error.message}
+    {error.requestId && <small> İstek: {error.requestId}</small>}
+    <button type="button" className="nasa-btn nasa-btn-xs" onClick={retry}>Yeniden dene</button>
+  </div>;
+}
 
-  useEffect(() => {
-    fetchExperiments({
-      investigationId: selectedInv,
-      fuel: selectedFuel,
-      page: 0,
-      size: 50,
-    }).then((res) => {
-      setExperimentsPage(res);
-      setActiveDetailExp((prev) => prev || res.items[0] || null);
-    });
-  }, [selectedInv, selectedFuel]);
+export default function ExperimentExplorer() {
+  const [filters, setFilters] = useState({ investigationId: "", fuel: "", page: 0, size: 20 });
+  const [fuelInput, setFuelInput] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [detailId, setDetailId] = useState(null);
+  const [compareIds, setCompareIds] = useState([]);
+  const loadCatalog = useCallback(() => fetchInvestigations(), []);
+  const catalog = useApiResource(loadCatalog, `catalog:${retry}`);
+  const loadPage = useCallback(() => fetchExperiments(filters), [filters]);
+  const list = useApiResource(loadPage, `${JSON.stringify(filters)}:${retry}`);
+  const loadDetail = useCallback(() => fetchExperiment(detailId), [detailId]);
+  const detail = useApiResource(loadDetail, detailId ? `${detailId}:${retry}` : null);
+  const loadComparison = useCallback(() => compareExperiments(compareIds), [compareIds]);
+  const comparison = useApiResource(loadComparison, compareIds.length >= 2 ? `${compareIds.join(",")}:${retry}` : null);
+  const page = list.data;
+  const experiment = detail.data;
+  const result = comparison.data;
+  const reload = () => setRetry((value) => value + 1);
 
-  useEffect(() => {
-    let cancelled = false;
-    compareExperiments(compareIds).then((res) => {
-      if (!cancelled) {
-        setComparisonResult(compareIds.length >= 2 ? res : null);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [compareIds]);
+  function changeFilters(patch) {
+    setFilters((previous) => ({ ...previous, ...patch, page: 0 }));
+    setDetailId(null);
+  }
 
-  const toggleCompareId = (id) => {
-    setCompareIds((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((item) => item !== id);
-      }
-      if (prev.length >= 3) {
-        return [...prev.slice(1), id];
-      }
-      return [...prev, id];
-    });
-  };
+  function toggleComparison(id) {
+    setCompareIds((previous) => previous.includes(id)
+      ? previous.filter((item) => item !== id)
+      : previous.length < 3 ? [...previous, id] : previous);
+  }
 
-  const uniqueFuels = [
-    "PMMA Film",
-    "SIBAL Fabric",
-    "Silicone",
-    "Nomex III",
-    "Methanol",
-    "Kapton",
-  ];
-
-  return (
-    <div className="explorer-container">
-      {/* 1. Investigation Catalog Strip */}
-      <div className="panel-card">
-        <div className="panel-card-header">
-          <div>
-            <span className="section-eyebrow">
-              NASA PHYSICAL SCIENCES INFORMATICS (PSI) KATALOĞU
-            </span>
-            <h3>Açık Telemetri Araştırma Paketleri (9 Araştırma / 671 Deney Kaydı)</h3>
-          </div>
-          <div className="filter-controls-row">
-            <select
-              className="nasa-select"
-              value={selectedInv}
-              onChange={(e) => setSelectedInv(e.target.value)}
-            >
-              <option value="">Tüm Araştırmalar (PSI-25 .. PSI-102)</option>
-              {investigations.map((inv) => (
-                <option key={inv.investigationId} value={inv.investigationId}>
-                  {inv.investigationId} — {inv.shortName || inv.name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className="nasa-select"
-              value={selectedFuel}
-              onChange={(e) => setSelectedFuel(e.target.value)}
-            >
-              <option value="">Tüm Materyal / Yakıt Türleri</option>
-              {uniqueFuels.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
-
-            {(selectedInv || selectedFuel) && (
-              <button
-                type="button"
-                className="nasa-btn nasa-btn-xs"
-                onClick={() => {
-                  setSelectedInv("");
-                  setSelectedFuel("");
-                }}
-              >
-                Filtreleri Temizle
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="investigation-pills-grid">
-          {investigations.map((inv) => {
-            const isActive = selectedInv === inv.investigationId;
-            return (
-              <button
-                type="button"
-                key={inv.investigationId}
-                className={`inv-pill-card ${isActive ? "active" : ""}`}
-                onClick={() =>
-                  setSelectedInv(isActive ? "" : inv.investigationId)
-                }
-              >
-                <div className="inv-pill-top">
-                  <span className="inv-id-badge">{inv.investigationId}</span>
-                  <span className="inv-run-count">{inv.totalRunsInCsv} kayıt</span>
-                </div>
-                <div className="inv-pill-name">{inv.shortName || inv.name}</div>
-                <div className="inv-pill-facility">{inv.facility}</div>
-              </button>
-            );
-          })}
-        </div>
+  return <div className="explorer-container">
+    <div className="panel-card">
+      <div className="panel-card-header">
+        <div><span className="section-eyebrow">NASA PSI ARAŞTIRMALARI</span><h3>Backend deney kataloğu</h3></div>
+        <form className="filter-controls-row" onSubmit={(event) => { event.preventDefault(); changeFilters({ fuel: fuelInput.trim() }); }}>
+          <select className="nasa-select" aria-label="Araştırma filtresi" value={filters.investigationId}
+            onChange={(event) => changeFilters({ investigationId: event.target.value })}>
+            <option value="">Tüm araştırmalar</option>
+            {(catalog.data || []).map((inv) => <option key={inv.investigationId} value={inv.investigationId}>{inv.investigationId} · {inv.name}</option>)}
+          </select>
+          <input className="nasa-input" aria-label="Yakıt filtresi" placeholder="Yakıt adı (tam eşleşme)" value={fuelInput} onChange={(event) => setFuelInput(event.target.value)} />
+          <button className="nasa-btn" type="submit">Filtrele</button>
+          <button className="nasa-btn" type="button" onClick={() => { setFuelInput(""); changeFilters({ investigationId: "", fuel: "" }); }}>Temizle</button>
+        </form>
       </div>
-
-      {/* 2. Experiments Table + Measurement Qualifier Inspector */}
-      <div className="explorer-split-grid">
-        <div className="panel-card">
-          <div className="panel-card-header">
-            <div>
-              <span className="section-eyebrow">
-                DENEY TELEMETRİ MATRİSİ (GET /api/v1/experiments)
-              </span>
-              <h4>
-                Doğrulanmış NASA PSI Deneyleri ({experimentsPage.totalElements} Gösteriliyor)
-              </h4>
-            </div>
-            <span className="compare-counter-badge">
-              Karşılaştırma Seçimi: {compareIds.length}/3
-            </span>
-          </div>
-
-          <div className="nasa-table-wrapper">
-            <table className="nasa-table">
-              <thead>
-                <tr>
-                  <th>Karşılaştır</th>
-                  <th>Deney Kimliği</th>
-                  <th>Test #</th>
-                  <th>Yakıt / Materyal</th>
-                  <th>O₂ (% vol)</th>
-                  <th>Akış (cm/s)</th>
-                  <th>AI Risk</th>
-                  <th>Raporlanan Sonuç</th>
-                  <th>İşlem</th>
-                </tr>
-              </thead>
-              <tbody>
-                {experimentsPage.items.map((exp) => {
-                  const risk = evaluateFireRisk(exp.simulationParams);
-                  const isCompared = compareIds.includes(exp.experimentId);
-                  const isInspected =
-                    activeDetailExp?.experimentId === exp.experimentId;
-
-                  const o2Cond = exp.conditions?.find(
-                    (c) => c.name === "oxygenInitial"
-                  );
-                  const flowCond = exp.conditions?.find(
-                    (c) => c.name === "airflow"
-                  );
-
-                  return (
-                    <tr
-                      key={exp.experimentId}
-                      className={isInspected ? "row-selected" : ""}
-                      onClick={() => setActiveDetailExp(exp)}
-                    >
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={isCompared}
-                          onChange={() => toggleCompareId(exp.experimentId)}
-                          aria-label={`${exp.experimentId} karşılaştırmaya ekle`}
-                        />
-                      </td>
-                      <td className="mono-cell">{exp.experimentId}</td>
-                      <td className="mono-cell">
-                        <strong>{exp.sourceTestId}</strong>
-                      </td>
-                      <td>
-                        <div>{exp.fuel}</div>
-                        <small className="cell-subtext">{exp.materialRaw}</small>
-                      </td>
-                      <td className="mono-cell">
-                        {o2Cond ? o2Cond.rawValue : exp.simulationParams.oxygenPercent}%
-                        {o2Cond && o2Cond.qualifier !== "EXACT" && (
-                          <span className="qualifier-tag">{o2Cond.qualifier}</span>
-                        )}
-                      </td>
-                      <td className="mono-cell">
-                        {flowCond ? flowCond.rawValue : exp.simulationParams.airflowCmS}
-                        {flowCond && flowCond.qualifier !== "EXACT" && (
-                          <span className="qualifier-tag">{flowCond.qualifier}</span>
-                        )}
-                      </td>
-                      <td className="mono-cell">
-                        <span
-                          className="risk-pill-mini"
-                          style={{
-                            borderColor: risk.riskColor,
-                            color:
-                              risk.probability >= 75
-                                ? NASA_PALETTE.white.hex
-                                : NASA_PALETTE.deepBlue.hex,
-                            background:
-                              risk.probability >= 75
-                                ? NASA_PALETTE.rocketRed.hex
-                                : risk.probability >= 50
-                                ? NASA_PALETTE.neonYellow.hex
-                                : "#EEF4FF",
-                          }}
-                        >
-                          %{risk.probability}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="outcome-tag">{exp.reportedOutcome}</span>
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          className="nasa-btn nasa-btn-primary nasa-btn-xs"
-                          onClick={() => onLoadExperimentIntoSim(exp)}
-                        >
-                          Simülasyona Yükle →
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Right: Single Experiment Normalized Measurement & RawValue Inspector */}
-        {activeDetailExp && (
-          <div className="panel-card detail-inspector-card">
-            <div className="panel-card-header">
-              <div>
-                <span className="section-eyebrow">
-                  DENEY DETAYI & ÖLÇÜM DOĞRULAMA (BÖLÜM 4 SÖZLEŞME ŞEMASI)
-                </span>
-                <h4>
-                  {activeDetailExp.experimentId} (Test {activeDetailExp.sourceTestId})
-                </h4>
-              </div>
-              <button
-                type="button"
-                className="nasa-btn nasa-btn-yellow nasa-btn-sm"
-                onClick={() => onLoadExperimentIntoSim(activeDetailExp)}
-              >
-                ★ Bu Deneyi Simülatörde Çalıştır
-              </button>
-            </div>
-
-            <div className="detail-meta-grid">
-              <div>
-                <span className="meta-label">Araştırma:</span>
-                <strong>{activeDetailExp.investigationId}</strong>
-              </div>
-              <div>
-                <span className="meta-label">Baş Araştırmacı (PI):</span>
-                <strong>{activeDetailExp.pi}</strong>
-              </div>
-              <div>
-                <span className="meta-label">Tarih:</span>
-                <strong>
-                  {activeDetailExp.date || `${activeDetailExp.dateRaw} (Yıl Yok)`}
-                </strong>
-              </div>
-              <div>
-                <span className="meta-label">Numune:</span>
-                <strong>{activeDetailExp.materialRaw}</strong>
-              </div>
-            </div>
-
-            <div className="subpanel-title">
-              Normalize Koşullar & Ölçümler (rawValue & qualifier Korunumu)
-            </div>
-            <div className="measurements-list">
-              {[
-                ...(activeDetailExp.conditions || []),
-                ...(activeDetailExp.measurements || []),
-              ].map((m, idx) => (
-                <div key={`${m.name}-${idx}`} className="measurement-item">
-                  <div className="measurement-top">
-                    <span className="measurement-name">{m.name}</span>
-                    <span className="qualifier-badge">{m.qualifier}</span>
-                    <span className="quality-badge">{m.qualityStatus}</span>
-                  </div>
-                  <div className="measurement-values">
-                    <span>
-                      Normalize:{" "}
-                      <strong>
-                        {m.value !== null && m.value !== undefined
-                          ? `${m.value} ${m.unit || ""}`
-                          : m.startValue !== undefined
-                          ? `${m.startValue} → ${m.endValue} ${m.unit || ""}`
-                          : `null (${m.missingReason || "CHANGING"})`}
-                      </strong>
-                    </span>
-                    <span>
-                      Kaynak (rawValue): <code>&quot;{m.rawValue}&quot;</code>
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {activeDetailExp.reportedFindings?.length > 0 && (
-              <div className="findings-box">
-                <div className="subpanel-title">Bilimsel Bulgular</div>
-                {activeDetailExp.reportedFindings.map((f, i) => (
-                  <p key={i}>{f}</p>
-                ))}
-              </div>
-            )}
-
-            {activeDetailExp.warnings?.length > 0 && (
-              <div className="warnings-box">
-                {activeDetailExp.warnings.map((w, i) => (
-                  <div key={i} className="warning-line">
-                    <strong>[{w.code}]</strong> {w.message}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* 3. Side-by-Side Comparison Module (POST /api/v1/comparisons) */}
-      {comparisonResult && comparisonResult.status !== "INSUFFICIENT_DATA" && (
-        <div className="panel-card">
-          <div className="panel-card-header">
-            <div>
-              <span className="section-eyebrow">
-                YAN YANA DENEY KARŞILAŞTIRMA MATRİSİ (POST /api/v1/comparisons)
-              </span>
-              <h4>
-                Seçilen Deneyler: {comparisonResult.experimentIds.join(" vs. ")}
-              </h4>
-            </div>
-            <span
-              className={`status-tag ${
-                comparisonResult.status === "COMPARABLE"
-                  ? "status-comparable"
-                  : "status-limited"
-              }`}
-            >
-              KARŞILAŞTIRMA DURUMU: {comparisonResult.status}
-            </span>
-          </div>
-
-          <div className="comparison-series-grid">
-            {comparisonResult.series.map((s) => {
-              const maxVal = Math.max(
-                1,
-                ...s.points.map((p) => Number(p.value) || 0)
-              );
-              return (
-                <div key={s.metric} className="series-card">
-                  <div className="series-card-title">{s.label}</div>
-                  {s.points.map((pt) => {
-                    const pct = Math.min(100, ((pt.value || 0) / maxVal) * 100);
-                    return (
-                      <div key={pt.experimentId} className="series-bar-row">
-                        <div className="series-bar-meta">
-                          <span>
-                            {pt.experimentId} ({pt.sourceTestId})
-                          </span>
-                          <strong>
-                            {pt.value} {s.unit}
-                          </strong>
-                        </div>
-                        <div className="series-bar-track">
-                          <div
-                            className="series-bar-fill"
-                            style={{
-                              width: `${pct}%`,
-                              background:
-                                s.metric === "aiFireRisk"
-                                  ? NASA_PALETTE.rocketRed.hex
-                                  : NASA_PALETTE.blueYonder.hex,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="nasa-table-wrapper" style={{ marginTop: "14px" }}>
-            <table className="nasa-table">
-              <thead>
-                <tr>
-                  <th>Karşılaştırılan Alan</th>
-                  {comparisonResult.experimentIds.map((id) => (
-                    <th key={id} className="mono-cell">
-                      {id}
-                    </th>
-                  ))}
-                  <th>Mühendislik Notu</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comparisonResult.differences.map((diff) => (
-                  <tr key={diff.field}>
-                    <td>
-                      <strong>{diff.field}</strong>
-                    </td>
-                    {diff.values.map((v) => (
-                      <td key={v.experimentId} className="mono-cell">
-                        {v.value}
-                      </td>
-                    ))}
-                    <td className="cell-subtext">{diff.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {catalog.loading && <p role="status">Araştırmalar yükleniyor…</p>}
+      {catalog.error && <ErrorMessage error={catalog.error} retry={reload} />}
+      {catalog.data?.length === 0 && <p>Araştırma kataloğu boş.</p>}
+      <div className="investigation-pills-grid">{(catalog.data || []).map((inv) => (
+        <button type="button" key={inv.investigationId} className={`inv-pill-card ${filters.investigationId === inv.investigationId ? "active" : ""}`}
+          onClick={() => changeFilters({ investigationId: inv.investigationId })}>
+          <span className="inv-id-badge">{inv.investigationId}</span><div className="inv-pill-name">{inv.name}</div><p>{inv.description}</p>
+        </button>
+      ))}</div>
     </div>
-  );
+
+    <div className="explorer-split-grid">
+      <div className="panel-card">
+        <div className="panel-card-header"><h4>Deney ve numune kayıtları{page && ` (${page.totalElements} kayıt)`}</h4><span>Karşılaştırma: {compareIds.length}/3</span></div>
+        {list.loading && <p role="status">Deneyler yükleniyor…</p>}
+        {list.error && <ErrorMessage error={list.error} retry={reload} />}
+        {page?.items.length === 0 && <p role="status">Bu filtrelere uygun backend deney kaydı yok.</p>}
+        {page?.items.length > 0 && <div className="nasa-table-wrapper"><table className="nasa-table">
+          <thead><tr><th>Karşılaştır</th><th>Deney kimliği</th><th>Kaynak test #</th><th>Yakıt</th><th>Tarih</th><th>Raporlanan sonuç</th><th>İşlem</th></tr></thead>
+          <tbody>{page.items.map((exp) => <tr key={exp.experimentId} className={detailId === exp.experimentId ? "row-selected" : ""}>
+            <td><input type="checkbox" checked={compareIds.includes(exp.experimentId)} disabled={compareIds.length >= 3 && !compareIds.includes(exp.experimentId)}
+              onChange={() => toggleComparison(exp.experimentId)} aria-label={`${exp.experimentId} karşılaştır`} /></td>
+            <td className="mono-cell">{exp.experimentId}</td><td>{exp.sourceTestId}</td><td>{exp.fuel || "Belirtilmemiş"}</td>
+            <td>{experimentDate(exp)}</td><td>{exp.reportedOutcome || "Belirtilmemiş"}</td>
+            <td><button className="nasa-btn nasa-btn-xs" onClick={() => setDetailId(exp.experimentId)}>Detay</button></td>
+          </tr>)}</tbody>
+        </table></div>}
+        {page && <div className="filter-controls-row">
+          <button className="nasa-btn nasa-btn-xs" disabled={page.page === 0} onClick={() => { setFilters({ ...filters, page: page.page - 1 }); setDetailId(null); }}>Önceki</button>
+          <span>Sayfa {page.totalPages ? page.page + 1 : 0} / {page.totalPages}</span>
+          <button className="nasa-btn nasa-btn-xs" disabled={page.page + 1 >= page.totalPages} onClick={() => { setFilters({ ...filters, page: page.page + 1 }); setDetailId(null); }}>Sonraki</button>
+        </div>}
+      </div>
+
+      <div className="panel-card detail-inspector-card">
+        {!detailId && <p>Koşulları, ölçümleri ve kaynak hücrelerini görmek için deney detayı açın.</p>}
+        {detail.loading && <p role="status">Deney detayı yükleniyor…</p>}
+        {detail.error && <ErrorMessage error={detail.error} retry={reload} />}
+        {experiment && <>
+          <h4>{experiment.experimentId} · Test {experiment.sourceTestId}</h4>
+          <p>{experiment.experimentIdentifier} · {experiment.fuel} · {experimentDate(experiment)}</p>
+          <p>Raporlanan sonuç: {experiment.reportedOutcome || "Belirtilmemiş"}</p>
+          <ExperimentSourceView key={experiment.experimentId} experiment={experiment} />
+          <div className="subpanel-title">Koşullar ve ölçümler</div>
+          {experiment.measurements.length === 0 && <p>Bu kaynakta sayısal sonuç ölçümü yok; gösterilenler numune/koşul bilgileri ve kaynakta verilen nitel alanlardır.</p>}
+          {[...experiment.conditions, ...experiment.measurements].map((measurement, index) => <div key={`${measurement.name}:${index}`} className="measurement-item">
+            <div className="measurement-top"><strong>{measurement.name}</strong><span className="qualifier-badge">{measurement.qualifier}</span><span className="quality-badge">{measurement.qualityStatus}</span></div>
+            <div className="measurement-values"><span>{measurementText(measurement)}</span><span>Kaynak hücre: <code>{JSON.stringify(measurement.rawValue)}</code></span></div>
+          </div>)}
+          {experiment.reportedFindings.length > 0 && <div className="findings-box"><h4>Raporlanan bulgular</h4>{experiment.reportedFindings.map((finding, index) => <p key={index}>
+            <strong>{finding.name}:</strong> {finding.value} <span> · Ham değer: <code>{JSON.stringify(finding.rawValue)}</code> · {finding.sourceId}</span>
+          </p>)}</div>}
+          <Warnings warnings={experiment.warnings} />
+          {experiment.sources.map((source) => <SourceCard key={source.sourceId} source={source} />)}
+        </>}
+      </div>
+    </div>
+
+    <div className="panel-card">
+      <h4>Deney karşılaştırması</h4>
+      <div className="filter-controls-row">{compareIds.map((id) => <button className="nasa-btn nasa-btn-xs" key={id} onClick={() => toggleComparison(id)}>{id} ×</button>)}</div>
+      {compareIds.length < 2 && <p>Karşılaştırma için 2 veya 3 deney seçin.</p>}
+      {comparison.loading && <p role="status">Karşılaştırma yükleniyor…</p>}
+      {comparison.error && <ErrorMessage error={comparison.error} retry={reload} />}
+      {result && <>
+        <p>Durum: <strong>{result.status}</strong></p>
+        {result.status === "INSUFFICIENT_DATA" && <p>Sayısal karşılaştırma için yeterli doğrulanmış ölçüm yok.</p>}
+        <div className="comparison-series-grid">{result.series.map((series) => {
+          const max = Math.max(1, ...series.points.filter((point) => Number.isFinite(point.value)).map((point) => Math.abs(point.value)));
+          return <div key={`${series.metric}:${series.unit}`} className="series-card">
+            <h4>{series.metric} {series.unit && `(${series.unit})`}</h4>
+            {comparisonRows(series, result.experimentIds).map(({ experimentId, point }) => <div className="series-bar-row" key={experimentId}>
+              <div className="series-bar-meta"><span>{experimentId}</span><strong>{point ? `${point.value} ${series.unit || ""}` : "Doğrulanmış değer yok"}</strong></div>
+              {point && <><div className="series-bar-track"><div className="series-bar-fill" style={{ width: `${Math.abs(point.value) / max * 100}%` }} /></div><small>{point.sourceId}</small></>}
+            </div>)}
+          </div>;
+        })}</div>
+        <div className="nasa-table-wrapper"><table className="nasa-table"><thead><tr><th>Alan</th>{result.experimentIds.map((id) => <th key={id}>{id}</th>)}<th>Not</th></tr></thead>
+          <tbody>{result.differences.map((difference) => <tr key={difference.field}><td>{difference.field}</td>{result.experimentIds.map((id) => <td key={id}>{difference.values.find((value) => value.experimentId === id)?.value ?? "Eksik / hariç"}</td>)}<td>{difference.note}</td></tr>)}</tbody>
+        </table></div>
+        <Warnings warnings={result.warnings} />
+        {result.sources.map((source) => <SourceCard key={source.sourceId} source={source} />)}
+      </>}
+    </div>
+  </div>;
 }

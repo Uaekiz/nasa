@@ -89,7 +89,8 @@ async def run_checks(*, cold: bool = False) -> dict:
             if cold:
                 await unload_for_cold_check(client, profile.model)
             first_was_loaded = await is_loaded(client, profile.model)
-            filters = RetrievalFilters((corpus.manifest["sourceId"],), ("PSI-69",), "Methanol")
+            flex_source_id = next(r["sourceId"] for r in corpus.records if r["investigationId"] == "PSI-69")
+            filters = RetrievalFilters((flex_source_id,), ("PSI-69",), "Methanol")
             question = "Find FLEX droplet tests reported as extinction."
             first = await retrieve(question, filters=filters)
             second_was_loaded = await is_loaded(client, profile.model)
@@ -103,7 +104,7 @@ async def run_checks(*, cold: bool = False) -> dict:
                     for match in result["matches"]
                 ):
                     raise RagError("CHECK_FAILED", "A semantic result violated the fuel or reported-outcome filter.")
-            unsupported = await retrieve("Describe flame spread on solid cotton fabric in microgravity.")
+            unsupported = await retrieve("Describe flame spread on solid cotton fabric in microgravity.", filters=RetrievalFilters(investigation_ids=("PSI-69",)))
             if unsupported["status"] != "INSUFFICIENT_EVIDENCE" or unsupported["matches"]:
                 raise RagError("CHECK_FAILED", "Unsupported fabric questions must not be treated as supported evidence.")
             numeric = await retrieve("Which FLEX test has the highest burning rate?")

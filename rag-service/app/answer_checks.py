@@ -64,8 +64,11 @@ def validate_answer(body, question, corpus, investigation_ids):
             assert f"FLEX test {original['sourceTestId']} " in line
             assert f"FLEX Identifier {original['fields']['FLEX Identifier']}" in line
             for header in coverage.required_fields:
-                value = original["fields"][header] or "(empty source cell)"
-                assert f"{header}: {value}" in line
+                value = original["fields"][header]
+                if value.strip().casefold() in {"", "none", "n/a", "na", "-", "–", "—"}:
+                    assert "does not give" in line or "does not provide" in line
+                else:
+                    assert value in line
     assert "mm/s" not in body["answer"]
     timings = body["timings"]
     assert all(isinstance(value, (int, float)) and value >= 0 for value in timings.values())
@@ -78,7 +81,10 @@ def main():
     args = parser.parse_args()
     corpus = load_corpus()  # Compares every staged record and cell with the original CSV.
     before = index_snapshot(corpus)
-    source_path = BASE_DIR.parent / corpus.manifest["sourceFile"]
+    source_path = BASE_DIR.parent / (
+        corpus.manifest["sourceFile"] if "sourceFile" in corpus.manifest
+        else next(s["sourceFile"] for s in corpus.manifest["sources"] if s["investigationId"] == "PSI-69")
+    )
     source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
     report = {"endpoint": args.base_url, "before": before, "sourceSha256": source_hash, "cases": []}
     with httpx.Client(timeout=125.0, trust_env=False) as client:

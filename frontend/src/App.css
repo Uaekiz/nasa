@@ -1010,6 +1010,7 @@
 }
 
 .series-bar-fill {
+  background: #2e96f5;
   height: 100%;
 }
 
@@ -1346,3 +1347,17 @@
     grid-template-columns: 1fr;
   }
 }
+.three-viewport { min-width: 0; }
+.three-viewport .camera-view-group { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.three-viewport .three-mount-box { touch-action: none; }
+.three-viewport canvas { display: block; max-width: 100%; }
+.webgl-fallback { position: absolute; inset: 0; display: grid; place-content: center; padding: 24px; color: #fff; }
+.experiment-source-view { min-width: 0; margin: 18px 0; padding: 12px; border: 1px solid #285080; border-radius: 10px; }
+.experiment-source-view .sim-canvas-wrapper { height: clamp(220px, 30vw, 310px); }
+.experiment-source-view p, .experiment-source-view dd { overflow-wrap: anywhere; }
+.experiment-source-view .source-view-caption { font-size: 12px; color: var(--text-secondary); }
+.experiment-source-view summary { cursor: pointer; margin: 10px 0; }
+.experiment-source-view dl > div { padding: 6px 0; border-bottom: 1px solid #203c60; }
+.experiment-source-view dd { margin: 4px 0; }
+.experiment-source-view ul { padding-left: 20px; }
+.detail-inspector-card, .explorer-split-grid > .panel-card { min-width: 0; }

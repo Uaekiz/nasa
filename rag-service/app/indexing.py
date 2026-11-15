@@ -25,6 +25,8 @@ async def index_corpus(
     started = perf_counter()
     store.bootstrap(profile)
     cache = store.cache()
+    if set(cache) - set(corpus.by_key):
+        raise RagError("INCOMPLETE_SOURCE_SCOPE", "The incoming snapshot omits persisted source rows. No existing rows were deleted; use a complete reviewed catalog or a new schema.")
     dirty = []
     needs_embedding = set()
     for record in corpus.records:

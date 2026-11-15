@@ -38,6 +38,21 @@ public class ChatService {
         this.experimentService = experimentService;
     }
 
+    public Map<String, Object> capabilities() {
+        try {
+            Map<?, ?> response = ragRestClient.get().uri("/rag/v1/capabilities").retrieve().body(Map.class);
+            if (response == null) {
+                throw new IllegalStateException("Empty capabilities response");
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            response.forEach((key, value) -> result.put(String.valueOf(key), value));
+            return result;
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "RAG_UNAVAILABLE",
+                    "RAG source scope is unavailable. Check the RAG service and pending service restarts.");
+        }
+    }
+
     public Map<String, Object> chat(ChatRequest request) {
         String question = request.question();
         if (question == null || question.isBlank()) {
@@ -140,7 +155,8 @@ public class ChatService {
         for (String experimentId : experimentIds) {
             for (MeasurementView measurement : experimentService.measurements(
                     experimentId, "MEASUREMENT")) {
-                if ("VERIFIED".equals(measurement.qualityStatus()) && measurement.value() != null) {
+                if ("VERIFIED".equals(measurement.qualityStatus()) && measurement.value() != null
+                        && ("EXACT".equals(measurement.qualifier()) || "APPROXIMATE".equals(measurement.qualifier()))) {
                     Map<String, Object> fact = new LinkedHashMap<>();
                     fact.put("name", measurement.name());
                     fact.put("value", measurement.value());

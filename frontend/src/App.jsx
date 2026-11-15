@@ -23,7 +23,6 @@ export default function App() {
   const [appliedBanner, setAppliedBanner] = useState(null);
   const [backendStatus, setBackendStatus] = useState({
     status: "CHECKING",
-    mode: "LOCAL_PSI_TELEMETRY",
   });
 
   useEffect(() => {
@@ -87,17 +86,6 @@ export default function App() {
     setAppliedBanner(null);
   };
 
-  const handleLoadExperimentIntoSim = (exp) => {
-    if (!exp?.simulationParams) return;
-    setPreviousParamsSnapshot({ ...params });
-    setParams({ ...exp.simulationParams });
-    setActivePresetId(exp.experimentId);
-    setAppliedBanner(
-      `NASA PSI Deneyi Yüklendi: ${exp.experimentId} (Test ${exp.sourceTestId} — ${exp.materialRaw})`
-    );
-    setActiveTab("dashboard");
-  };
-
   return (
     <div className="nasa-app-shell">
       {/* 1. CLEAN PROFESSIONAL HEADER */}
@@ -150,7 +138,7 @@ export default function App() {
       </header>
 
       {/* 2. SCENARIO PRESET BAR */}
-      <section className="preset-ribbon" aria-label="Ortam Senaryoları">
+      {activeTab === "dashboard" && <section className="preset-ribbon" aria-label="Simülasyon Senaryoları">
         <span className="preset-ribbon-label">ORTAM PROFİLİ:</span>
         <div className="preset-buttons-scroll">
           {MISSION_PRESETS.map((preset) => (
@@ -167,7 +155,7 @@ export default function App() {
             </button>
           ))}
         </div>
-      </section>
+      </section>}
 
       {/* FEEDBACK BANNER */}
       {appliedBanner && (
@@ -199,6 +187,7 @@ export default function App() {
 
       {/* 3. MAIN WORKSPACE */}
       <main className="mission-main">
+        {activeTab === "dashboard" && <p className="simulation-notice" role="note">Simülasyon: Bu ekrandaki senaryolar, grafikler ve risk skorları örnek model çıktılarıdır; kaynak deney ölçümleri değildir. Gerçek kayıtlar NASA PSI Veri Tabanı sekmesindedir.</p>}
         {activeTab === "dashboard" && (
           <>
             {/* CLEAN 4-CARD KPI STRIP */}
@@ -591,7 +580,7 @@ export default function App() {
 
                           <div className="rec-card-footer">
                             <span className="rec-psi-ref">
-                              Referans: <strong>{rec.psiReference}</strong>
+                              Model etiketi: <strong>{rec.psiReference}</strong>
                             </span>
                             <button
                               type="button"
@@ -615,23 +604,17 @@ export default function App() {
                 params={params}
                 mitigationPlan={mitigationPlan}
                 timelineData={timelineData}
-                onSelectPsiPoint={handleLoadExperimentIntoSim}
               />
             </section>
           </>
         )}
 
         {activeTab === "explorer" && (
-          <ExperimentExplorer
-            onLoadExperimentIntoSim={handleLoadExperimentIntoSim}
-          />
+          <ExperimentExplorer />
         )}
 
         {activeTab === "assistant" && (
-          <AiAssistantPanel
-            params={params}
-            mitigationPlan={mitigationPlan}
-          />
+          <AiAssistantPanel />
         )}
       </main>
 
@@ -640,7 +623,7 @@ export default function App() {
         <div className="palette-spec-strip">
           <span className="palette-strip-title">
             NASA RENK PALETİ & SİSTEM DURUMU (
-            {backendStatus.status === "UP" ? "API BAĞLI" : "PSI YEREL VERİ"}):
+            {backendStatus.status === "UP" ? "API BAĞLI" : backendStatus.status === "CHECKING" ? "API KONTROL EDİLİYOR" : "API BAĞLANTISI YOK"}):
           </span>
           <div className="palette-swatches-row">
             {PALETTE_LIST.map((c) => (

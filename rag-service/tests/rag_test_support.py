@@ -7,6 +7,7 @@ import math
 from app.rag_config import RagError
 from app.rag_corpus import Corpus, content_hash, record_key, text_hash
 from app.vector_store import PgVectorStore
+from app.source_catalog import field_value
 
 
 def synthetic_corpus(count=3):
@@ -80,13 +81,13 @@ class MemoryStore:
             record = value["record"]
             tests = (
                 ("source_ids", record["sourceId"]), ("investigation_ids", record["investigationId"]),
-                ("test_ids", record["sourceTestId"]), ("flex_identifiers", record["fields"]["FLEX Identifier"]),
+                ("test_ids", record["sourceTestId"]), ("flex_identifiers", field_value(record, "identifier")),
             )
             if any(filters.get(name) and actual not in filters[name] for name, actual in tests):
                 continue
-            if filters.get("fuel") and record["fields"]["Fuel"] != filters["fuel"]:
+            if filters.get("fuel") and " ".join(field_value(record, "fuel").split()) != filters["fuel"]:
                 continue
-            if filters.get("outcome") and record["fields"]["Test end"] != filters["outcome"]:
+            if filters.get("outcome") and field_value(record, "outcome") != filters["outcome"]:
                 continue
             result.append((key, record))
         return result

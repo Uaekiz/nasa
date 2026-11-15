@@ -17,14 +17,14 @@ Design rules implemented here:
   * Unit conversions keep original_value/original_unit/conversion_method.
 
 Run:
-    data/etl/.venv/Scripts/python.exe data/etl/load_experiments.py
+    python data/etl/load_experiments.py --investigation PSI-69
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -32,15 +32,16 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 
-import psycopg2
-from psycopg2.extras import Json
+import psycopg
+from psycopg.types.json import Jsonb as Json
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = ROOT / "data" / "manifest.json"
+SOURCE_MANIFEST = ROOT / "rag-service" / "source_manifest.json"
 
 DB_CONFIG = {
     "host": os.getenv("PYROSPHERE_DB_HOST", "localhost"),
-    "port": int(os.getenv("PYROSPHERE_DB_PORT", "5432")),
+    "port": int(os.getenv("PYROSPHERE_DB_PORT", "5433")),
     "dbname": os.getenv("PYROSPHERE_DB_NAME", "pyrosphere"),
     "user": os.getenv("PYROSPHERE_DB_USER", "pyrosphere"),
     "password": os.getenv("PYROSPHERE_DB_PASSWORD", "pyrosphere_dev"),
@@ -56,7 +57,7 @@ EXACT_RE = re.compile(rf"^({NUMBER})$")
 # "0.33 cm", "30 cm/s", "420 s", "182 W" -> numeric value + source unit.
 UNIT_SUFFIX_RE = re.compile(rf"^({NUMBER})\s*(cm/s|cm|mm|s|W|w|ppm|%|frames?)$", re.IGNORECASE)
 
-MISSING_TOKENS = {"", "n/a", "na", "n.a.", "none", "null", "-", "--", "?", "missing"}
+MISSING_TOKENS = {"", "n/a", "na", "n.a.", "none", "null", "-", "--", "–", "—", "?", "missing"}
 
 VERIFIED = "VERIFIED"
 REQUIRES_REVIEW = "REQUIRES_REVIEW"
@@ -212,81 +213,123 @@ DATASETS = {
         "findings": ["Test end"],
         "outcome_header": "Test end",
     },
-    "PSI-25": {
-        "source_id": "PSI-25:experimental-table:v1",
-        "test_header": "Test #",
-        "identifier_header": "Test #",
-        "date_header": "Date",
-        "time_header": "GMT",
-        "fuel_header": "Fuel Sample Material",
-        "conditions": [
-            column("Sample number", "Sample #"),
-            column("Flow restrictor", "Flow restrictor"),
-            column("Fan display", "Fan display"),
-            column("Air display", "Air display"),
-            column("Radiometer gain", "Radiometer gain   (1000   250   50   10)"),
-        ],
-        "measurements": [
-            column("Total frames shot", "Total Frames Shot", "frames"),
-            column("Initial O2", "Calibrated  initial O2 % by vol", "% by vol"),
-            column("Final O2", "Calibrated final O2 % by vol", "% by vol"),
-            column("Initial CO2", "Initial CO2 % by vol", "% by vol"),
-            column("Final CO2", "Final CO2 % by vol", "% by vol"),
-            column("Initial CO", "Initial CO (ppm)", "ppm"),
-            column("Final CO", "Final CO (ppm)", "ppm"),
-        ],
-        "findings": ["PI"],
-        "outcome_header": None,
-    },
-    "PSI-101": {
-        "source_id": "PSI-101:experimental-table:v1",
-        "test_header": "SAME Test #",
-        "identifier_header": "SAME Test #",
-        "date_header": "Date",
-        "time_header": None,
-        "fuel_header": "Sample Type",
-        "conditions": [
-            column("Inlet velocity", "Inlet velocity (cm/s)", "cm/s"),
-            column("Rt/R0", "Rt/R0"),
-            column("Duration", "Duration (sec)", "s"),
-            column("Primary aging time", "Primary aging time (sec)", "s"),
-            column("Primary mixing time", "Primary mixing time (sec)", "s"),
-        ],
-        "measurements": [
-            column("Net aging time", "Net aging time (sec)", "s"),
-        ],
-        "findings": ["Description"],
-        "outcome_header": None,
-    },
-    "PSI-100": {
-        "source_id": "PSI-100:experimental-table:v1",
-        "test_header": "Sample Number",
-        "identifier_header": "Sample Number",
-        "date_header": None,
-        "time_header": None,
-        "fuel_header": "Material",
-        "conditions": [
-            column("Sample thickness", "Sample Thickness", "mm", "cm_to_mm"),
-            column("Sample length", "Sample Length", "mm", "cm_to_mm"),
-            column("Sample width", "Sample Width", "mm", "cm_to_mm"),
-            column("Air flow", "Air Flow", "cm/s"),
-        ],
-        "measurements": [],
-        "findings": ["Direction"],
-        "outcome_header": None,
-    },
 }
 
+DATASETS.update({
+    "PSI-25": {
+        "source_id": "PSI-25:experimental-table:v1", "test_header": "Test #", "identifier_header": "Test #",
+        "date_header": "Date", "time_header": "GMT", "fuel_header": "Fuel Sample Material", "outcome_header": None,
+        "conditions": [column("Flow restrictor", "Flow restrictor", suspicious=True),
+            column("Fan display", "Fan display", suspicious=True), column("Air display", "Air display", suspicious=True),
+            column("Radiometer gain", "Radiometer gain   (1000   250   50   10)", suspicious=True),
+            column("Initial O2", "Calibrated  initial O2 % by vol", "% by vol"),
+            column("Initial CO2", "Initial CO2 % by vol", "% by vol"), column("Initial CO", "Initial CO (ppm)", "ppm")],
+        "measurements": [column("Total frames shot", "Total Frames Shot", "frames"),
+            column("Final O2", "Calibrated final O2 % by vol", "% by vol"),
+            column("Final CO2", "Final CO2 % by vol", "% by vol"), column("Final CO", "Final CO (ppm)", "ppm")],
+        "findings": ["PI", "Sample #", "Fuel Sample Material"],
+    },
+    "PSI-100": {
+        "source_id": "PSI-100:experimental-table:v1", "test_header": "Sample Number", "identifier_header": "Sample Number",
+        "date_header": None, "time_header": None, "fuel_header": "Material", "outcome_header": None,
+        "conditions": [column("Sample thickness", "Sample Thickness", "mm", "cm_to_mm"),
+            column("Sample length", "Sample Length", "mm", "cm_to_mm"), column("Sample width", "Sample Width", "mm", "cm_to_mm"),
+            column("Air flow", "Air Flow", "cm/s")],
+        "measurements": [], "findings": ["Material", "Direction", "Camera 1", "Camera 2"],
+    },
+    "PSI-101": {
+        "source_id": "PSI-101:experimental-table:v1", "test_header": "SAME Test #", "identifier_header": "SAME Test #",
+        "date_header": "Date", "time_header": None, "fuel_header": "Sample Type", "outcome_header": None,
+        "conditions": [column("Inlet velocity", "Inlet velocity (cm/s)", "cm/s"), column("Rt/R0", "Rt/R0", "1"),
+            column("Duration", "Duration (sec)", "s"), column("Primary aging time", "Primary aging time (sec)", "s"),
+            column("Primary mixing time", "Primary mixing time (sec)", "s")],
+        "measurements": [column("Net aging time", "Net aging time (sec)", "s")], "findings": ["Sample Type", "Description"],
+    },
+})
 
-def read_csv_rows(path: Path) -> tuple[list[str], list[tuple[int, list[str]]]]:
-    with path.open("r", encoding="utf-8-sig", errors="replace", newline="") as handle:
-        reader = csv.reader(handle)
-        try:
-            header = next(reader)
-        except StopIteration:
-            return [], []
-        rows = [(number, row) for number, row in enumerate(reader, start=2) if any(clean(c) for c in row)]
-    return header, rows
+
+def source_reader():
+    spec = importlib.util.spec_from_file_location("reviewed_sources", ROOT / "rag-service/app/source_catalog.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def prepare_verified(investigation_ids, manifest_path=DEFAULT_MANIFEST):
+    reader = source_reader()
+    catalog = reader.load_catalog()
+    backend = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    selected, records_by_source = [], {}
+    for investigation in backend["investigations"]:
+        if investigation["investigationId"] not in investigation_ids:
+            continue
+        sources = []
+        for source in catalog["sources"]:
+            if source["investigationId"] != investigation["investigationId"]:
+                continue
+            records = reader.read_source(source)
+            public_file = ROOT / "data/public-docs" / Path(source["documentUrl"].replace("%20", " ")).name
+            if hashlib.sha256(public_file.read_bytes()).hexdigest() != source["sha256"]:
+                raise ValueError("Public source file differs from pinned original")
+            records_by_source[source["sourceId"]] = records
+            sources.append({"sourceId": source["sourceId"], "title": source["title"], "sourceType": source["sourceType"],
+                "doi": source["doi"], "originalUrl": source["provenance"]["investigationUrl"],
+                "documentUrl": source["documentUrl"], "relativePath": source["sourceFile"], "rowCount": len(records),
+                "etlEnabled": True, "primary": source["primary"],
+                "provenance": {**source["provenance"], "sha256": source["sha256"], "encoding": source["encoding"],
+                    "headers": source.get("headers"), "sheetHeaders": source.get("sheetHeaders"), "coverage": source["coverage"]}})
+        selected.append({**investigation, "sources": sources})
+    if set(investigation_ids) != {i["investigationId"] for i in selected}:
+        raise ValueError("Requested investigation is not in the reviewed catalog")
+    return {"investigations": selected}, records_by_source
+
+
+def save_source_row(cur, experiment_id, record):
+    cur.execute("""INSERT INTO core.experiment_source_rows
+        (source_id, sheet_name, row_number, experiment_id, source_test_id, headers, raw_cells, original_cells)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        ON CONFLICT (source_id, sheet_name, row_number) DO UPDATE SET
+            raw_cells=EXCLUDED.raw_cells, original_cells=EXCLUDED.original_cells, headers=EXCLUDED.headers
+        WHERE core.experiment_source_rows.experiment_id=EXCLUDED.experiment_id
+    """, (record["sourceId"], record.get("sheetName", ""), record["rowNumber"], experiment_id,
+        record["sourceTestId"], list(record["fields"]), Json(list(record["fields"].values())),
+        Json(record["originalCells"]) if "originalCells" in record else None))
+    if cur.rowcount != 1:
+        raise ValueError("Source-row experiment mapping changed; transaction rolled back")
+
+
+def import_verified(conn, manifest, records_by_source):
+    results = {}
+    with conn.transaction():
+        with conn.cursor() as cur:
+            for inv in sorted(i["investigationId"] for i in manifest["investigations"]):
+                cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (inv + ":experimental-table:v1",))
+            upsert_manifest(cur, manifest)
+            cur.execute((ROOT / "backend/src/main/resources/db/migration/V3__source_rows.sql").read_text(encoding="utf-8"))
+        for investigation in manifest["investigations"]:
+            inv = investigation["investigationId"]
+            primary = next(s for s in investigation["sources"] if s["primary"])
+            results[inv] = load_dataset(conn, inv, primary, DATASETS[inv], records=records_by_source[primary["sourceId"]], preserve_source_rows=True)
+            with conn.cursor() as cur:
+                cur.execute("SELECT count(*) FROM core.experiments WHERE source_id = %s", (primary["sourceId"],))
+                if cur.fetchone()[0] != primary["rowCount"]:
+                    raise ValueError("Unexpected primary-source experiment count")
+                for source in investigation["sources"]:
+                    if source["primary"]: continue
+                    for record in records_by_source[source["sourceId"]]:
+                        cur.execute("SELECT experiment_id, raw_row FROM core.experiments WHERE source_id=%s AND source_test_id=%s",
+                            (primary["sourceId"], record["sourceTestId"]))
+                        matches = cur.fetchall()
+                        # BASS workbook PI is its worksheet name, not an inferred file-wide label.
+                        if len(matches) != 1 or matches[0][1][0] != record["sheetName"]:
+                            raise ValueError("Workbook test ID / investigator mapping is ambiguous")
+                        experiment_id = matches[0][0]
+                        save_source_row(cur, experiment_id, record)
+                        cur.execute("""INSERT INTO core.reported_findings
+                            (experiment_id,name,value,raw_value,source_id,display_order) VALUES (%s,%s,%s,%s,%s,100)
+                        """, (experiment_id, f"Workbook [{record['sheetName']}] Material", record["fields"]["Material"],
+                            record["fields"]["Material"], source["sourceId"]))
+    return results
 
 
 def index_headers(header: list[str]) -> dict[str, int]:
@@ -306,7 +349,7 @@ def parse_date_value(raw: str) -> date | None:
     text = clean(raw)
     if not text:
         return None
-    for pattern in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d", "%d-%b-%Y", "%d-%b"):
+    for pattern in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d", "%d-%b-%Y"):
         try:
             parsed = datetime.strptime(text, pattern)
             if parsed.year == 1900:  # "%d-%b" supplies 1900; the source has no year.
@@ -376,7 +419,8 @@ def upsert_manifest(cur, manifest: dict) -> None:
                     source.get("relativePath"),
                     Json({"etlEnabled": source.get("etlEnabled", False),
                           "rowCount": source.get("rowCount"),
-                          "notes": source.get("notes", [])}),
+                          "notes": source.get("notes", []),
+                          **source.get("provenance", {})}),
                 ),
             )
 
@@ -384,11 +428,15 @@ def upsert_manifest(cur, manifest: dict) -> None:
 def next_experiment_id(cur, investigation_id: str) -> str:
     cur.execute(
         """
-        INSERT INTO core.experiment_id_sequence (investigation_id, last_value)
-        VALUES (%s, 0)
-        ON CONFLICT (investigation_id) DO NOTHING
+        INSERT INTO core.experiment_id_sequence AS seq (investigation_id, last_value)
+        VALUES (%s, COALESCE((
+            SELECT max(substring(experiment_id from ':run-([0-9]+)$')::integer)
+            FROM core.experiments WHERE investigation_id = %s
+        ), 0))
+        ON CONFLICT (investigation_id) DO UPDATE
+        SET last_value = GREATEST(seq.last_value, EXCLUDED.last_value)
         """,
-        (investigation_id,),
+        (investigation_id, investigation_id),
     )
     cur.execute(
         "SELECT last_value FROM core.experiment_id_sequence WHERE investigation_id = %s FOR UPDATE",
@@ -409,6 +457,20 @@ def ensure_experiment(cur, investigation_id: str, source_id: str, source_test_id
     """Return the persistent experimentId for this source row (upsert semantics)."""
     cur.execute("SELECT experiment_id FROM core.experiments WHERE row_fingerprint = %s", (fingerprint,))
     existing = cur.fetchone()
+
+    if existing is None:
+        # Never allocate another identity for an existing location in this source version.
+        # The byte hash preflight rejects changed files; this also catches legacy drift.
+        cur.execute("""
+            SELECT experiment_id, source_test_id FROM core.experiments
+            WHERE source_id = %s AND source_row_number = %s
+        """, (source_id, source_row_number))
+        previous = cur.fetchall()
+        if previous:
+            raise ValueError(
+                f"Source identity conflict at {source_id}, row {source_row_number}: {previous}. "
+                "Review the existing mapping; no new experimentId was allocated."
+            )
 
     if existing:
         experiment_id = existing[0]
@@ -477,16 +539,18 @@ def insert_measurement(cur, experiment_id: str, category: str, spec: dict, parse
     )
 
 
-def load_dataset(conn, investigation_id: str, source: dict, dataset: dict) -> dict:
-    path = ROOT / source["relativePath"]
-    header, rows = read_csv_rows(path)
+def load_dataset(conn, investigation_id: str, source: dict, dataset: dict,
+                 *, records: list[dict], preserve_source_rows=False) -> dict:
+    """Load validated records inside the caller's transaction; never commit here."""
+    header = list(records[0]["fields"])
+    rows = [(record["rowNumber"], list(record["fields"].values())) for record in records]
     index = index_headers(header)
 
     required = [dataset.get("test_header"), dataset.get("fuel_header")]
     required += [spec["header"] for spec in dataset["conditions"] + dataset["measurements"]]
     missing = [name for name in required if name and normalized_header(name) not in index]
     if missing:
-        raise RuntimeError(f"{path.name}: beklenen sutunlar bulunamadi: {missing}")
+        raise RuntimeError(f"{source['relativePath']}: missing columns: {missing}")
 
     created = updated = 0
     with conn.cursor() as cur:
@@ -530,6 +594,8 @@ def load_dataset(conn, investigation_id: str, source: dict, dataset: dict) -> di
             )
 
             warnings: dict[tuple[str, str], None] = {}
+            if preserve_source_rows:
+                save_source_row(cur, experiment_id, next(record for record in records if record["rowNumber"] == row_number))
             order = 0
             verified_numeric = 0
 
@@ -540,9 +606,11 @@ def load_dataset(conn, investigation_id: str, source: dict, dataset: dict) -> di
                     parsed = convert_measurement(parse_cell(raw_value), spec.get("transform"))
                     if spec.get("suspicious") and parsed["quality_status"] != MISSING:
                         parsed["quality_status"] = REQUIRES_REVIEW
-                        warnings[("BURNING_RATE_UNIT_AMBIGUOUS",
-                                  "Burning rate basligindaki birim (mm) belirsiz; deger REQUIRES_REVIEW, "
-                                  "varsayilan sayisal karsilastirmaya katilmaz.")] = None
+                        code = "BURNING_RATE_UNIT_AMBIGUOUS" if spec["name"] == "Burning rate" else "DISPLAY_UNIT_UNSPECIFIED"
+                        warnings[(code, f"{spec['header']}: source unit/interpretation requires review; no rate or airflow conversion was inferred.")] = None
+                    if parsed.get("value") is not None and parsed["value"] < 0 and spec.get("unit") in {"ppm", "% by vol", "s", "frames"}:
+                        parsed["quality_status"] = REQUIRES_REVIEW
+                        warnings[("NEGATIVE_REPORTED_VALUE", f"{spec['header']}: negative source reading preserved; excluded from verified comparisons.")] = None
                     if parsed["quality_status"] == REQUIRES_REVIEW:
                         warnings[("VALUE_REQUIRES_REVIEW",
                                   f"{spec['name']}: '{clean(raw_value)}' tek bir dogrulanmis sayiya "
@@ -592,7 +660,6 @@ def load_dataset(conn, investigation_id: str, source: dict, dataset: dict) -> di
             else:
                 updated += 1
 
-    conn.commit()
     return {"created": created, "updated": updated, "rows": len(rows)}
 
 
@@ -628,41 +695,73 @@ def report(conn) -> None:
         cur.execute("SELECT count(*) FROM core.experiment_warnings")
         print(f"core.experiment_warnings: {cur.fetchone()[0]}")
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Pyrosphere CSV -> PostgreSQL ETL")
+def prepare_flex(manifest_path: Path = DEFAULT_MANIFEST,
+                 source_manifest_path: Path = SOURCE_MANIFEST) -> tuple[dict, list[dict]]:
+    """Reuse RAG's strict, read-only CSV extraction, without touching its index/output."""
+    spec = importlib.util.spec_from_file_location("flex_csv_source", ROOT / "rag-service/app/csv_loader.py")
+    loader = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loader)
+    records = loader.extract_records(source_manifest_path, repository_dir=ROOT)
+    provenance = json.loads(source_manifest_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    investigation = next(item for item in manifest["investigations"] if item["investigationId"] == "PSI-69")
+    source = next(item for item in investigation["sources"] if item["sourceId"] == DATASETS["PSI-69"]["source_id"])
+    if (provenance["sourceId"] != source["sourceId"] or provenance["expectedTestCount"] != 274
+            or len(records) != 274 or source["rowCount"] != 274):
+        raise ValueError("FLEX source identity/count differs between backend and RAG manifests.")
+    if source["relativePath"] != provenance["sourceFile"]:
+        raise ValueError("FLEX source path differs between backend and RAG manifests.")
+    # The existing backend file endpoint must serve the identical original bytes.
+    public_file = ROOT / "data/public-docs" / Path(provenance["sourceFile"]).name
+    if hashlib.sha256(public_file.read_bytes()).hexdigest() != provenance["sha256"]:
+        raise ValueError("The public FLEX source file differs from the manifested CSV.")
+    source["provenance"] = {
+        "sha256": provenance["sha256"], "encoding": provenance["encoding"],
+        "headers": list(records[0]["fields"]), "rowNumberIncludesHeader": True,
+    }
+    return {"investigations": [{**investigation, "sources": [source]}]}, records
+
+
+def import_flex(conn, manifest: dict, records: list[dict]) -> dict:
+    """One transaction covers catalog, identities, measurements, findings and warnings."""
+    with conn.transaction():
+        with conn.cursor() as cur:
+            # Serialize imports before looking up fingerprints or allocating IDs.
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (DATASETS["PSI-69"]["source_id"],))
+            upsert_manifest(cur, manifest)
+        source = manifest["investigations"][0]["sources"][0]
+        stats = load_dataset(conn, "PSI-69", source, DATASETS["PSI-69"], records=records)
+        with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM core.experiments WHERE investigation_id = 'PSI-69'")
+            if cur.fetchone()[0] != 274:
+                raise ValueError("Expected exactly 274 FLEX experiments; transaction rolled back.")
+        return stats
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Explicit reviewed NASA sources -> PostgreSQL core import (no RAG writes)")
+    selection = parser.add_mutually_exclusive_group(required=True)
+    selection.add_argument("--investigation", action="append", choices=sorted(DATASETS))
+    selection.add_argument("--all-verified", action="store_true")
     parser.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
-    args = parser.parse_args()
+    parser.add_argument("--dry-run", action="store_true", help="Validate source files and counts without database writes")
+    args = parser.parse_args(argv)
 
     manifest_path = Path(args.manifest)
     if not manifest_path.is_absolute():
         manifest_path = ROOT / manifest_path
-    with manifest_path.open("r", encoding="utf-8") as handle:
-        manifest = json.load(handle)
-
-    investigations = {item["investigationId"]: item for item in manifest["investigations"]}
-    connection = psycopg2.connect(**DB_CONFIG)
     try:
-        with connection.cursor() as cur:
-            upsert_manifest(cur, manifest)
-        connection.commit()
-
-        for investigation_id in manifest["etl"]["order"]:
-            investigation = investigations[investigation_id]
-            source = next(
-                (item for item in investigation["sources"] if item.get("etlEnabled")),
-                None,
-            )
-            if source is None:
-                print(f"! {investigation_id}: etlEnabled kaynak yok, atlandi")
-                continue
-            dataset = DATASETS[investigation_id]
-            print(f"-> {investigation_id} ({investigation['name']}), kaynak: {source['relativePath']}")
-            stats = load_dataset(connection, investigation_id, source, dataset)
-            print(f"   yeni: {stats['created']}, guncellenen: {stats['updated']}, veri satiri: {stats['rows']}")
-
-        report(connection)
-    finally:
-        connection.close()
+        manifest, records = prepare_verified(list(DATASETS) if args.all_verified else args.investigation, manifest_path)
+        print("Validated sources:", {key: len(value) for key, value in records.items()})
+        if args.dry_run:
+            return 0
+        with psycopg.connect(**DB_CONFIG, connect_timeout=10, autocommit=True) as connection:
+            stats = import_verified(connection, manifest, records)
+            print("Committed:", stats)
+            report(connection)
+    except (ValueError, OSError, psycopg.Error) as error:
+        print(f"Import failed; no partial import committed: {error}", file=sys.stderr)
+        return 1
     return 0
 
 

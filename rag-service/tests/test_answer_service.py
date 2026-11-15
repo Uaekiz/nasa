@@ -21,7 +21,7 @@ REQUEST_ID = "00000000-0000-4000-8000-000000000001"
 class AnswerTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
-        cls.corpus = load_corpus()
+        cls.corpus = load_corpus(mode="flex")
         cls.by_test = {record["sourceTestId"]: record for record in cls.corpus.records}
 
     async def asyncSetUp(self):
@@ -58,8 +58,9 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
         body = response.json()
         self.assertEqual(body["status"], "ANSWERED")
         self.assertEqual(body["modelTier"], "SLM")
-        self.assertIn("Burning rate; mm: 0.41", body["answer"])
-        self.assertIn("Burn time; s: 1.6", body["answer"])
+        self.assertIn("column records 0.41", body["answer"])
+        self.assertIn("reported burn time was 1.6 s. [S1]", body["answer"])
+        self.assertIn("recorded outcome was Extinction", body["answer"])
         self.assertNotIn("mm/s", body["answer"])
         self.assertEqual(body["sources"][0]["rowNumber"], 71)
         self.assertIsNone(body["sources"][0]["pdfPage"])
@@ -121,14 +122,23 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(body["status"], "INSUFFICIENT_EVIDENCE", question)
         self.generator.assert_not_called()
 
-    async def test_omitted_duplicate_or_forged_citation_is_technical_failure(self):
+    async def test_invalid_model_output_falls_back_to_cited_source_without_claiming_model_success(self):
         self.retrieval.return_value = self.result(("70", "73"), flex_identifiers=["193F001"])
         for output in (self.selection(1), self.selection(2).replace('"S2"', '"S99"'), '{"answer":"an invented claim"}'):
             self.generator.return_value = output
             response = await self.post("Show both records for identifier 193F001.")
-            self.assertEqual(response.status_code, 503)
-            self.assertEqual(response.json()["error"]["details"], [{"code": "GENERATION_VALIDATION_FAILED"}])
-            self.assertNotIn("status", response.json())
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertEqual(body["status"], "PARTIAL")
+            self.assertEqual(body["modelTier"], "NONE")
+            self.assertIsNone(body["modelUsed"])
+            self.assertIn("The model output could not be validated", body["answer"])
+            self.assertIn("MODEL_OUTPUT_REJECTED", [w["code"] for w in body["warnings"]])
+            self.assertIn("0.41", body["answer"])
+            self.assertIn("0.56", body["answer"])
+            self.assertIn("[S2]", body["answer"])
+            self.assertNotIn("S99", body["answer"])
+            self.assertNotIn("an invented claim", body["answer"])
 
     async def test_database_model_and_timeout_errors_are_not_missing_evidence(self):
         errors = [
@@ -168,13 +178,13 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
         self.generator.return_value = self.selection(ids=("9",))
         body = (await self.post("Summarize FLEX test 9.")).json()
         self.assertEqual(body["status"], "PARTIAL")
-        self.assertIn("(empty source cell)", body["answer"])
+        self.assertIn("does not give a burn time value", body["answer"])
         self.assertIn("SOURCE_MISSING_VALUE", [w["code"] for w in body["warnings"]])
 
     def test_literal_qualifier_preservation_and_unknown_fields(self):
         record = next(r for r in self.corpus.records if r["fields"]["Burn time; s"] in ("~6", "~9"))
         answer, _ = render_validated_answer(self.selection(ids=(record["sourceTestId"],)), [record], ("Fuel", "Test end", "Burn time; s", "Burning rate; mm"))
-        self.assertIn("Burn time; s: " + record["fields"]["Burn time; s"], answer)
+        self.assertIn("burn time was " + record["fields"]["Burn time; s"] + " s", answer)
         with self.assertRaisesRegex(RagError, "could not be validated"):
             render_validated_answer(self.selection(fields=["airflow"]), [record], ("Fuel",))
 

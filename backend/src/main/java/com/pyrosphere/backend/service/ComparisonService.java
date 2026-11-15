@@ -83,7 +83,8 @@ public class ComparisonService {
             measurementRows = rows.size();
             for (MeasurementView measurement : rows) {
                 boolean usable = "VERIFIED".equals(measurement.qualityStatus())
-                        && measurement.value() != null;
+                        && measurement.value() != null
+                        && ("EXACT".equals(measurement.qualifier()) || "APPROXIMATE".equals(measurement.qualifier()));
                 if (!usable) {
                     String key = experiment.experimentId() + "|" + measurement.name()
                             + "|" + measurement.qualityStatus();

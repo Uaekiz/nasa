@@ -33,6 +33,26 @@ def health():
     return {"status": "UP"}
 
 
+@app.get("/rag/v1/capabilities")
+def capabilities():
+    from collections import Counter
+    from .rag_corpus import load_corpus
+    from .source_catalog import PROFILES, EXAMPLE_QUESTIONS
+    from .rag_config import DatabaseSettings
+    from .vector_store import open_store
+    try:
+        corpus = load_corpus()
+        with open_store(DatabaseSettings.from_environment()) as store, store.lock(shared=True):
+            store.ready(corpus)
+        counts = Counter(r["investigationId"] for r in corpus.records)
+        return {"status": "READY", "language": "en", "items": [{"investigationId": inv,
+            "name": PROFILES[inv]["name"], "sourceIds": sorted({r["sourceId"] for r in corpus.records if r["investigationId"] == inv}),
+            "evidenceRows": counts[inv], "examples": [q for q in EXAMPLE_QUESTIONS[inv] if "workbook" not in q or any(r["investigationId"] == inv and r["sourceType"] == "XLSX" for r in corpus.records)]}
+            for inv in sorted(counts)]}
+    except RagError as error:
+        return error_response(None, 503, "RAG_UNAVAILABLE", str(error), [{"code": error.code}])
+
+
 @app.post("/rag/v1/answer")
 async def answer(request: AnswerRequest):
     request_id = str(request.requestId)

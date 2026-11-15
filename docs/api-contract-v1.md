@@ -2,6 +2,14 @@
 
 Tarih: 14 Kasım 2026. Durum: ekibin uygulamaya başlayacağı önerilen ilk sözleşme.
 
+15 Kasım eki: `GET /api/v1/chat/capabilities` backend üzerinden
+`GET /rag/v1/capabilities` yanıtını iletir. Yanıt `status: READY`, `language: en`,
+`items` içerir. Her öğe `investigationId`, `name`, `sourceIds`, `evidenceRows`,
+`examples` alanlarını taşır. Yalnızca orijinal dosyaları ve hazır indeks durumu
+doğrulanan kaynaklar listelenir; hata durumunda yerel katalog üretilmez.
+CSV ve XLSX kanıtları ayrı kalır; XLSX atıfları gerçek `sheetName` ve `rowNumber`
+kullanır. Ayrıntılar: [Çoklu kaynak entegrasyonu](multi-source-integration.md).
+
 Bu belge ekip içi teknik anlaşmadır. Örneklerdeki kimlikler ve yanıt metinleri şemayı göstermek içindir; gerçek NASA kayıtlarının eşleştirilmesi tamamlandığı anlamına gelmez.
 
 ## 1. Sahiplik ve servis sınırları
@@ -108,7 +116,8 @@ Path kimlikleri istemci tarafından URL-encode edilir. Sağlık yanıtı: `{"sta
       "sourceTestId": "1",
       "fuel": "Methanol",
       "date": "2009-03-05",
-      "reportedOutcome": "DISRUPTION"
+      "reportedOutcome": "DISRUPTION",
+      "dateRaw": "3/5/2009"
     }
   ],
   "page": 0,
@@ -118,7 +127,7 @@ Path kimlikleri istemci tarafından URL-encode edilir. Sağlık yanıtı: `{"sta
 }
 ```
 
-Yukarıdaki response biçim örneğidir. Yakıt filtresi için örneğin `&fuel=Heptane` eklenir; filtre sonrası toplamlar yeniden hesaplanır. Test detayı aynı kimlik alanlarına ek olarak `conditions`, `measurements`, `reportedFindings`, `sources`, `warnings` dizilerini içerir. Koşullar ve ölçümler Bölüm 4 nesnesini kullanır; bulgular kaynaklı nitel açıklamalardır.
+Yukarıdaki response biçim örneğidir. Listeye geriye uyumlu `dateRaw` alanı eklenmiştir; detayda da bulunur. SAME-R test 51a için `date: null, dateRaw: "22-Jul"` döner; yıl tahmin edilmez. Tam tarih yoksa arayüz ham tarihi ve yılın kaynakta olmadığını, iki alan da boşsa “Kaynakta belirtilmemiş” gösterir. Yakıt filtresi için örneğin `&fuel=Heptane` eklenir; filtre sonrası toplamlar yeniden hesaplanır. Test detayı aynı kimlik alanlarına ek olarak `conditions`, `measurements`, `reportedFindings`, `sources`, `warnings` dizilerini içerir. Koşullar ve ölçümler Bölüm 4 nesnesini kullanır; bulgular kaynaklı nitel açıklamalardır.
 
 `GET /investigations`: `{"items":[{"investigationId":"PSI-25","name":"BASS-II","description":"...","availableDataTypes":["CONDITIONS","REPORTED_FINDINGS"]}]}`. Sayısal kapsam mevcut dosyalara göre belirtilir.
 
@@ -218,7 +227,7 @@ RAG bu nesneyi döndürür; Spring Boot aynı alanlarla frontend'e iletir:
 
 Örnekteki süreler yer tutucudur; gerçek servis ölçülen süreleri yazar. `ragTotalMs`, backend ve frontend ağ süresini kapsamaz.
 
-`status`: ANSWERED, PARTIAL, INSUFFICIENT_EVIDENCE. Bunlar HTTP 200 ile döner; teknik hata değildir. `modelTier`: SLM, LLM veya model çağrılmadıysa NONE. `modelUsed` model çağrılmadıysa null.
+`status`: ANSWERED, PARTIAL, INSUFFICIENT_EVIDENCE. Bunlar HTTP 200 ile döner; teknik hata değildir. `modelTier`: SLM, LLM veya kullanılabilir model çıktısı yoksa NONE. `modelUsed` çağrı yapılmadığında veya çıktısı reddedildiğinde null olur. Doğrulanamayan model çıktısında özgün kaynak hücreleri kısa, atıflı İngilizce cümlelerle aktarılır: `status: PARTIAL`, `modelTier: NONE`, `modelUsed: null` ve `MODEL_OUTPUT_REJECTED` uyarısı döner. Yanıt bu geri dönüşü açıkça belirtir; `generationMs` yapılan denemenin süresini korur. Başarılı çıktıda da modelin serbest metni gösterilmez: tüm alanlar özgün hücrelerle birebir doğrulanır, ardından aynı kontrollü cümle üreticisi kullanılır. Bağlantı/model erişimi/zaman aşımı hataları hata zarfında kalır.
 
 Kaynak türleri: DOCUMENT, CSV, XLSX. PDF sayfaları 1'den başlar; `printedPage` rapordaki basılı etiket, `pdfPage` görüntüleyicideki sıra numarasıdır. CSV satır numarası başlığı da sayarak 1'den başlar; XLSX için sayfa adı ve Excel satırı belirtilir. Kullanılmayan alanlar null olur.
 

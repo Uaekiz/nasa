@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import AsyncMock, patch
 
 import httpx
 
@@ -18,7 +19,9 @@ class ApiCompatibilityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "UP"})
 
-    async def test_answer_keeps_existing_fields_and_insufficient_evidence(self):
+    @patch("app.answer_service.retrieve_for_answer", new_callable=AsyncMock)
+    async def test_answer_keeps_existing_fields_and_insufficient_evidence(self, retrieve):
+        retrieve.return_value = {"route": "INSUFFICIENT_EVIDENCE", "matches": [], "reason": "This question is not covered by the supplied source rows."}
         request_id = "00000000-0000-4000-8000-000000000001"
         response = await self.client.post("/rag/v1/answer", json={
             "requestId": request_id,

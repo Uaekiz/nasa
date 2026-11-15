@@ -1,3 +1,22 @@
+# Multi-source upgrade (15 November 2026)
+
+Source answers now use short cited English sentences after exact cell validation.
+Rejected model output falls back explicitly to original source cells with no
+successful model attribution. See [narrative/date/3D report](../docs/source-narrative-and-3d.md)
+for checks, examples, restart commands and the current Ollama availability limit.
+
+The validated multi-source index is selected with `RAG_CORPUS_MODE=multi` and
+`RAG_INDEX_NAME=nasa_multi_v1`. It contains 643 independent evidence rows from
+five hash-verified NASA sources. The 274-row legacy FLEX index remains intact.
+The backend contains 514 experiment/sample records; BASS-II workbook rows do not
+create duplicate experiments. SAFFIRE-III provides only two sample/condition rows.
+
+See [the integration report](../docs/multi-source-integration.md) for verified
+provenance, limitations, import/index/test commands and required backend/RAG
+restarts. `GET /rag/v1/capabilities` reports only a validated READY scope and
+English example questions. The older FLEX-only instructions below describe the
+legacy mode (`RAG_CORPUS_MODE=flex`, `RAG_INDEX_NAME=legacy`).
+
 # PyroSphere RAG service
 
 This independent, English-only FastAPI service uses local Ollama. No external
