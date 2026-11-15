@@ -1,0 +1,15 @@
+# Local Python environment and caches.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local configuration, source documents, and generated ingestion output.
+.env
+.env.*
+!.env.example
+/data/documents/*
+/data/processed/
+
+# Local extension source checkouts and compiler output.
+/.local/

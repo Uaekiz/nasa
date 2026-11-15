@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>FLAMESCOPE</title>
+  <rect width="64" height="64" rx="14" fill="#07173F"/>
+  <path d="M34 11c1 9-8 12-8 19 0 4 3 7 7 7 7 0 11-7 7-15 9 6 13 13 10 21-3 9-15 13-24 9-8-4-11-13-7-20 1 5 3 7 6 8-5-13 10-18 9-29Z" fill="#E43700"/>
+  <circle cx="29" cy="34" r="14" stroke="#FFFFFF" stroke-width="3"/>
+  <path d="m39 44 12 12" stroke="#2E96F5" stroke-width="6" stroke-linecap="round"/>
+  <path d="M25 34h8m-4-4v8" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+</svg>
