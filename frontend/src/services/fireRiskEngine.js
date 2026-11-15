@@ -1,5 +1,5 @@
-import { MATERIALS_CATALOG } from "../data/nasaPsiData";
-import { NASA_PALETTE } from "../theme/nasaPalette";
+import { MATERIALS_CATALOG } from "../data/nasaPsiData.js";
+import { NASA_PALETTE } from "../theme/nasaPalette.js";
 
 const clamp = (val, min, max) => Math.min(max, Math.max(min, val));
 
@@ -51,14 +51,14 @@ export function evaluateFireRisk(params) {
   let flowFactor;
   let flameRegime = "FAN_DRIVEN_SUSTAINED";
   let regimeDescription =
-    "Zorlanmış havalandırma akışı alev cephesine sürekli taze O₂ taşıyor (BASS-II / SAFFIRE rejimi).";
+      "Illustrative forced-flow display mode. This label is selected by the local model and is not a measured flame regime.";
 
   if (effectiveVelocityCmS < 1.6) {
     // Quiescent microgravity: combustion products form a stagnant CO2/H2O shell -> self-quenching
     flowFactor = 0.38 + (effectiveVelocityCmS / 1.6) * 0.32;
     flameRegime = "SPHERICAL_DIFFUSION";
     regimeDescription =
-      "Durgun mikroçekim (Quiescent 0g): Kaldırma kuvveti olmadığından küresel mavi difüzyon alevi oluşur; kendi CO₂ kabuğu ile oksijen açlığına (quenching) girer.";
+      "Illustrative low-flow display mode. The shape and color are model graphics, not measured flame properties.";
   } else if (
     airflowCmS > mat.blowoffFlowCmS &&
     oxygenPercent < effectiveLoi + 3.5
@@ -68,7 +68,7 @@ export function evaluateFireRisk(params) {
     flowFactor = clamp(0.68 - blowoffExcess * 0.35, 0.25, 0.68);
     flameRegime = "CONVECTIVE_BLOWOFF";
     regimeDescription =
-      "Yüksek Hızlı Konvektif Soğuma (Blowoff Sınırı): Yüksek hava hızı alev kökündeki ısıyı dağıtarak tutunmayı zorlaştırır (BASS-II Test B18/B19).";
+      "Illustrative high-flow display mode. The model does not establish extinction or a safe operating region.";
   } else {
     // Peak microgravity danger zone: 4 - 24 cm/s feeds oxygen steadily without blowing out the flame
     const distFromOptimal = Math.abs(effectiveVelocityCmS - mat.optimalFlowCmS);
@@ -76,21 +76,18 @@ export function evaluateFireRisk(params) {
     if (oxygenPercent >= 26.0) {
       flameRegime = "HYPEROXIC_ACCELERATORY";
       regimeDescription =
-        "Hiperoksik İvmeli Yayılım: Yüksek O₂ kısmi basıncı ve zorlanmış akış birleşerek kritik alev yayılma hızı üretir (Lunar/Exploration risk profili).";
+      "Illustrative higher-oxygen display mode. The source evidence does not validate its predicted flame behavior.";
     } else if (gravityG >= 0.12) {
       flameRegime = "BUOYANT_PLUME";
-      regimeDescription = `Kısmi Yerçekimi (${gravityG.toFixed(
-        2
-      )}g) Kaldırma Plumu: Doğal konveksiyon (~${buoyantVelocityCmS.toFixed(
-        1
-      )} cm/s eşdeğer) ve fan akışı sıcak gazları yukarı taşır.`;
+      regimeDescription =
+      "Illustrative partial-gravity display mode. Model-derived motion is not an experiment observation.";
     }
   }
 
   if (o2Margin < -0.5) {
     flameRegime = "QUENCHING_STARVATION";
     regimeDescription =
-      "Oksijen Açlığı / Sönme Bölgesi (Quenching): Ortam O₂ oranı malzemenin mikroçekim tutuşma sınırının (LOI) altındadır.";
+      "Illustrative lower-oxygen display mode. This does not establish that ignition or propagation is prevented.";
   }
 
   // 3. Flow Direction Multiplier (SAFFIRE-I S1 Concurrent vs S2 Opposed)
@@ -112,7 +109,7 @@ export function evaluateFireRisk(params) {
   const coAnomalyBoost = clamp((coPpm - 10) * 0.11, 0, 14);
   const co2AnomalyBoost = clamp((co2Percent - 0.35) * 12, 0, 6);
 
-  // Combine into overall AI Fire Outbreak & Sustained Propagation Probability (0 - 99.4%)
+  // Existing unitless demonstration score; the property name is retained for compatibility.
   let rawProbability =
     oxygenScore *
       mat.baseFlammability *
@@ -127,20 +124,20 @@ export function evaluateFireRisk(params) {
 
   // Determine Risk Level & Official NASA Palette Color
   let riskLevel = "LOW";
-  let riskLabelTr = "DÜŞÜK RİSK (GÜVENLİ ZARF)";
+  let riskLabelTr = "LOWER MODEL SCORE";
   let riskColor = NASA_PALETTE.blueYonder.hex; // #2E96F5
 
   if (probability >= 75) {
     riskLevel = "CRITICAL";
-    riskLabelTr = "KRİTİK YANGIN RİSKİ";
+    riskLabelTr = "UPPER MODEL SCORE";
     riskColor = NASA_PALETTE.rocketRed.hex; // #E43700
   } else if (probability >= 50) {
     riskLevel = "HIGH";
-    riskLabelTr = "YÜKSEK YAYILIM RİSKİ";
+    riskLabelTr = "HIGHER MODEL SCORE";
     riskColor = NASA_PALETTE.neonYellow.hex; // #EAFE07
   } else if (probability >= 26) {
     riskLevel = "MODERATE";
-    riskLabelTr = "ORTA SEVİYE (İZLEME GEREKLİ)";
+    riskLabelTr = "MID-RANGE MODEL SCORE";
     riskColor = NASA_PALETTE.neonBlue.hex; // #0960E1
   }
 
@@ -177,16 +174,16 @@ export function evaluateFireRisk(params) {
   const factorContributions = [
     {
       id: "oxygen",
-      label: "O₂ Konsantrasyonu & Kısmi Basınç",
+      label: "Oxygen input and model partial pressure",
       value: `${oxygenPercent.toFixed(1)}% (${partialPressureO2Kpa.toFixed(1)} kPa)`,
       weightPercent: Math.round((fO2 / factorSum) * 100),
       color: oxygenPercent > 23 ? NASA_PALETTE.rocketRed.hex : NASA_PALETTE.blueYonder.hex,
     },
     {
       id: "airflow",
-      label: "Mikroçekim Havalandırma & Akış Yönü",
+      label: "Airflow and direction inputs",
       value: `${airflowCmS.toFixed(1)} cm/s (${
-        flowDirection === "CONCURRENT" ? "Aynı Yönlü" : "Ters Yönlü"
+        flowDirection === "CONCURRENT" ? "Concurrent" : "Opposed"
       })`,
       weightPercent: Math.round((fFlow / factorSum) * 100),
       color:
@@ -196,21 +193,21 @@ export function evaluateFireRisk(params) {
     },
     {
       id: "material",
-      label: `Materyal Yanıcılık İndeksi (${mat.id})`,
+      label: `Illustrative material coefficient (${mat.id})`,
       value: `LOI: ${mat.loi}% O₂`,
       weightPercent: Math.round((fMat / factorSum) * 100),
       color: mat.baseFlammability > 0.6 ? NASA_PALETTE.rocketRed.hex : NASA_PALETTE.neonBlue.hex,
     },
     {
       id: "thermal",
-      label: "Termal Güç & Kabin Sıcaklığı",
+      label: "Power and temperature inputs",
       value: `${ignitionPowerW} W / ${temperatureC.toFixed(1)}°C`,
       weightPercent: Math.round((fThermal / factorSum) * 100),
       color: NASA_PALETTE.neonBlue.hex,
     },
     {
       id: "telemetry",
-      label: "Piroliz Gaz Telemetrisi (CO / CO₂)",
+      label: "CO / CO₂ scenario inputs",
       value: `${coPpm} ppm CO / ${co2Percent.toFixed(2)}% CO₂`,
       weightPercent: Math.max(
         3,
@@ -226,7 +223,6 @@ export function evaluateFireRisk(params) {
 
   return {
     probability,
-    confidence: 94.6,
     riskLevel,
     riskLabelTr,
     riskColor,
@@ -245,8 +241,8 @@ export function evaluateFireRisk(params) {
 }
 
 /**
- * Generates concrete, ranked AI recommendations to reduce fire probability,
- * calculating the exact post-mitigation probability for each action.
+ * Retains the existing illustrative model variants for charts.
+ * These patches are not operating advice or source-backed interventions.
  */
 export function generateMitigationRecommendations(params) {
   const baseline = evaluateFireRisk(params);
@@ -261,14 +257,11 @@ export function generateMitigationRecommendations(params) {
     if (delta > 1.5) {
       candidates.push({
         id: "rec-airflow-quench",
-        priority: delta >= 15 ? "KRİTİK ÖNCELİK" : "YÜKSEK ÖNCELİK",
-        category: "ECLSS HAVALANDIRMA KONTROLÜ",
-        title: `Havalandırma Akışını ${params.airflowCmS.toFixed(
-          1
-        )} cm/s → ${targetAirflow} cm/s Seviyesine Düşür`,
-        rationale:
-          "Mikroçekimde doğal kaldırma kuvveti (buoyancy) olmadığından alev yalnızca fan akışıyla taşınan oksijenle beslenir. Akışı <1.5 cm/s'ye indirmek alev etrafında CO₂ boğma kabuğu oluşturarak sönmeyi (Quenching) tetikler.",
-        psiReference: "PSI-25 (BASS-II Test B13 & B14)",
+        priority: delta >= 15 ? "MODEL VARIANT" : "MODEL VARIANT",
+        category: "Airflow variant",
+        title: "Illustrative airflow variant",
+        rationale: "Illustrative model variant only; no real-world recommendation or source-supported effect is established.",
+        psiReference: null,
         riskReductionDelta: delta,
         postActionProbability: after.probability,
         patch,
@@ -287,14 +280,11 @@ export function generateMitigationRecommendations(params) {
     if (delta > 2.0) {
       candidates.push({
         id: "rec-o2-normoxic",
-        priority: params.oxygenPercent >= 24 ? "KRİTİK ÖNCELİK" : "YÜKSEK ÖNCELİK",
-        category: "ATMOSFERİK O₂ / N₂ REGÜLASYONU",
-        title: `Kabin O₂ Oranını %${params.oxygenPercent.toFixed(
-          1
-        )} → %${targetO2.toFixed(1)} Seviyesine Seyrelt (N₂ Enjeksiyonu)`,
-        rationale:
-          "BASS-II ve SAFFIRE-II verilerine göre O₂ konsantrasyonunu malzemenin mikroçekim LOI sınırına (%17.5–20.5) yaklaştırmak alev yayılma hızını üstel olarak düşürür.",
-        psiReference: "PSI-25 (BASS-II B16/B17) & PSI-99 (SAFFIRE-II)",
+        priority: params.oxygenPercent >= 24 ? "MODEL VARIANT" : "MODEL VARIANT",
+        category: "Oxygen / pressure variant",
+        title: "Illustrative oxygen / pressure variant",
+        rationale: "Illustrative model variant only; no real-world recommendation or source-supported effect is established.",
+        psiReference: null,
         riskReductionDelta: delta,
         postActionProbability: after.probability,
         patch,
@@ -310,12 +300,11 @@ export function generateMitigationRecommendations(params) {
     if (delta > 1.0) {
       candidates.push({
         id: "rec-flow-direction",
-        priority: "OPERASYONEL ÖNLEM",
-        category: "AKIŞ GEOMETRİSİ",
-        title: "Hava Akış Yönünü Ters Yönlü (Opposed Flow) Moduna Çevir",
-        rationale:
-          "SAFFIRE-I (PSI-98) deneyinde aynı yönlü (Concurrent) akışta yanma 420 sn sürerken, ters yönlü (Opposed) akışta yanma 70 sn'de sınırlanmıştır. Ters akış, yanmamış yakıtın ön ısıtılmasını engeller.",
-        psiReference: "PSI-98 (SAFFIRE-I Test S1 vs S2)",
+        priority: "MODEL VARIANT",
+        category: "Direction variant",
+        title: "Illustrative direction variant",
+        rationale: "Illustrative model variant only; no real-world recommendation or source-supported effect is established.",
+        psiReference: null,
         riskReductionDelta: delta,
         postActionProbability: after.probability,
         patch,
@@ -331,12 +320,11 @@ export function generateMitigationRecommendations(params) {
     if (delta > 2.0) {
       candidates.push({
         id: "rec-material-nomex",
-        priority: "TASARIM / İZOLASYON",
-        category: "MATERYAL YANGIN BARİYERİ",
-        title: `${params.material} Yüzeyini Nomex III Yangın Bariyeri ile İzole Et`,
-        rationale:
-          "SAFFIRE-II Test 2-7'de PMMA tamamen yanarken bitişiğindeki Nomex III bariyeri tutuşmayı tamamen durdurmuştur (LOI: %26.5 O₂).",
-        psiReference: "PSI-99 (SAFFIRE-II Test 2-7) & PSI-25 (Ferkul F1)",
+        priority: "MODEL VARIANT",
+        category: "Material variant",
+        title: "Illustrative material variant",
+        rationale: "Illustrative model variant only; no real-world recommendation or source-supported effect is established.",
+        psiReference: null,
         riskReductionDelta: delta,
         postActionProbability: after.probability,
         patch,
@@ -356,12 +344,11 @@ export function generateMitigationRecommendations(params) {
     if (delta > 1.0) {
       candidates.push({
         id: "rec-thermal-cutoff",
-        priority: params.coPpm > 50 ? "KRİTİK ÖNCELİK" : "OPERASYONEL ÖNLEM",
-        category: "GÜÇ KESME & FİLTRELİ SCRUBBING",
-        title: `Termal Güç Kaynağını Sınırla (${params.ignitionPowerW}W → 40W) ve CO Scrubbing Başlat`,
-        rationale:
-          "SAME-R (PSI-101) duman yaşlanma verilerine göre piroliz başlangıcında (CO > 25 ppm) aviyonik güç kesintisi açık alev oluşumunu %70+ oranında önler.",
-        psiReference: "PSI-101 (SAME-R Test 51) & PSI-25 (Test B8)",
+        priority: params.coPpm > 50 ? "MODEL VARIANT" : "MODEL VARIANT",
+        category: "Power / gas variant",
+        title: "Illustrative power / gas variant",
+        rationale: "Illustrative model variant only; no real-world recommendation or source-supported effect is established.",
+        psiReference: null,
         riskReductionDelta: delta,
         postActionProbability: after.probability,
         patch,
@@ -387,8 +374,8 @@ export function generateMitigationRecommendations(params) {
 }
 
 /**
- * Generates a 20-point telemetry timeline showing past readings, current state,
- * and two future trajectories: (A) Unmitigated projection vs (B) AI-Mitigated trajectory.
+ * Generates 16 example model points on an arbitrary time axis.
+ * No points are sensor history or validated future forecasts.
  */
 export function generateTelemetryTimeline(params) {
   const { baseline, optimizedProbability, combinedPatch } =
@@ -421,7 +408,7 @@ export function generateTelemetryTimeline(params) {
         clamp(params.coPpm * (0.5 + 0.5 * progress) + Math.abs(wave) * 2, 0, 250)
       );
       points.push({
-        label: `${tSec === 0 ? "ŞİMDİ" : `${tSec}s`}`,
+        label: `${tSec === 0 ? "REFERENCE" : `${tSec}s`}`,
         tSec,
         isForecast: false,
         riskUnmitigated: Number(risk.toFixed(1)),

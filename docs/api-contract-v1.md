@@ -274,3 +274,88 @@ FastAPI'nin varsayılan doğrulama yanıtı bu hata biçimine uyarlanır. Geçer
 6. Üç kişi kimlik eşleşmesini, null/birim gösterimini ve kaynak sayfasını birlikte doğrular.
 
 Kimlik eşleşmeleri, alan adları veya enum'lar tek taraflı değiştirilmez. Yeni isteğe bağlı alanlar eklenebilir; mevcut alanın anlamını değiştiren sürüm ayrıca kararlaştırılır.
+
+## Scenario analysis
+
+The existing scenario capture workflow uses `POST /api/v1/scenario-analyses`.
+The PNG remains local in the browser. Submit only the captured timestamp and
+parameters; no image is sent to a text or vision model.
+
+```json
+{
+  "capturedAt": "2026-11-15T12:00:00.000Z",
+  "params": {
+    "oxygenPercent": 21,
+    "pressureKpa": 101.3,
+    "airflowCmS": 8.5,
+    "gravityG": 0,
+    "temperatureC": 23,
+    "ignitionPowerW": 10,
+    "material": "PMMA Film",
+    "flowDirection": "CONCURRENT",
+    "coPpm": 5,
+    "co2Percent": 0.1,
+    "coMeasurementPhase": "UNSPECIFIED",
+    "co2MeasurementPhase": "FINAL"
+  }
+}
+```
+
+All ten original inputs are retained and validated. Numeric inputs must be
+finite; oxygen/CO2 range from 0 to 100, pressure is positive, airflow/gravity/
+power/CO are nonnegative, and temperature cannot be below −273.15 °C. Material
+is a nonblank name up to 120 characters. Direction remains `CONCURRENT|OPPOSED`.
+Unknown parameter keys are rejected instead of silently discarded.
+
+The two gas-phase fields are additive and optional, defaulting to `UNSPECIFIED`.
+Each accepts `INITIAL|FINAL|UNSPECIFIED`. CO/CO2 are not compared until their own
+phase is selected. BASS-II oxygen comparisons explicitly use calibrated initial
+O2 % by volume. Percentage differences are **percentage points**, not relative
+percent changes. No mole-fraction/species/basis conversion is inferred for the
+FLEX composition columns. Fan display and Air display are never cm/s inputs.
+
+Spring Boot forwards `{material, params}` to the existing
+`POST /rag/v1/scenarios/evidence` endpoint. RAG validates the full parameter
+object and verifies that its material agrees with the outer material. RAG also
+retains the existing material-only request mode when `params` is omitted.
+
+The backend response retains `requestId`, `status: EVIDENCE_RETRIEVED`,
+`capturedAt`, `params` and `evidence`. It echoes the saved scenario, including
+gas-phase defaults. The frontend verifies that echo before attaching a result
+to a capture. A changed current scenario is explicitly marked stale.
+
+Additive `evidence` metadata:
+
+- `parameterCoverage`: an entry for every original parameter, including its
+  input value, comparison status, reason and source IDs.
+- `selectionDetails`: research-specific source class and ordering fields.
+- `matchedExperimentCount` and `returnedSourceVersionCount`: distinct grouped
+  experiments and independent returned source versions.
+- Each source has its own raw `fields`, `comparisons`, verified catalog links,
+  `sourceClass`, `alternateRecords` and `recordDifferences`. Alternate versions
+  have distinct citations such as `S1A1`. CSV and workbook cells are not merged.
+- Numeric comparisons retain original `sourceValue` and add
+  `normalizedSourceValue`. `difference` is always **scenario − source**;
+  `unit` denotes the difference unit. Direction uses `MATCH|DIFFERENT`.
+  Blank, qualified, invalid or unavailable fields remain `NOT_COMPARABLE`.
+
+Coverage statuses include `COMPARED`, `PARTIAL`, `NOT_COMPARABLE`,
+`PHASE_UNSPECIFIED` and `NO_SOURCE`. Ordering is within each investigation, then
+balanced across applicable investigations; there is no common similarity,
+confidence or fire-probability score. Material/test grouping for BASS-II also
+retains the original investigator to avoid combining unrelated test IDs.
+
+`evidence.narrative` retains `observations`, `nextChecks`, `message`, `status`
+and `modelUsed`, adding `modelRole` and `fallbackReason`. Observations are
+deterministic English comparisons with per-source citations. The model may only
+return an ordering of the supplied check IDs. Unknown/duplicate/missing IDs,
+new prose, model errors or timeout keep the deterministic results and default
+check order: `status: DETERMINISTIC`, `modelUsed: null`, `modelRole: NONE` and
+an explicit fallback reason. Successful ordering uses `MODEL_ORDERED_CHECKS`
+and `ORDERED_CHECK_IDS_ONLY`; it does not claim model-written science.
+
+Validation errors are HTTP 400. Backend/RAG connection errors, malformed
+upstream responses and request timeouts remain explicit 503/504 errors; the
+saved local capture is kept for retry. No matching source produces
+`INSUFFICIENT_EVIDENCE` with empty sources, not manufactured measurements.
+Normalized UI values use `en-US`; original source cells/headers stay verbatim.

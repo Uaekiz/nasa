@@ -1,12 +1,13 @@
 from uuid import UUID
 import asyncio
 import logging
-
+from .scenario_narrative import explain_scenario
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-
+from pydantic import BaseModel, Field, ConfigDict, model_validator
+from typing import Literal
+from .scenario_evidence import find_scenario_evidence
 from .answer_service import answer_question
 from .embedding_client import EmbeddingError
 from .rag_config import RagError
@@ -95,4 +96,66 @@ async def validation_error(request: Request, error: RequestValidationError):
             request_id = str(UUID(str(error.body.get("requestId"))))
         except ValueError:
             pass
-    return error_response(request_id, 400, "VALIDATION_ERROR", "The answer request contains invalid or missing fields.")
+    details = [{"field": ".".join(map(str, item["loc"])), "issue": item["msg"]} for item in error.errors()]
+    return error_response(request_id, 400, "VALIDATION_ERROR", "The request contains invalid or missing fields.", details)
+
+
+class ScenarioComparisonParams(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    oxygenPercent: float = Field(ge=0, le=100, allow_inf_nan=False, strict=True)
+    pressureKpa: float = Field(gt=0, allow_inf_nan=False, strict=True)
+    airflowCmS: float = Field(ge=0, allow_inf_nan=False, strict=True)
+    gravityG: float = Field(ge=0, allow_inf_nan=False, strict=True)
+    temperatureC: float = Field(ge=-273.15, allow_inf_nan=False, strict=True)
+    ignitionPowerW: float = Field(ge=0, allow_inf_nan=False, strict=True)
+    material: str = Field(min_length=1, max_length=120, strict=True)
+    flowDirection: Literal["CONCURRENT", "OPPOSED"]
+    coPpm: float = Field(ge=0, allow_inf_nan=False, strict=True)
+    co2Percent: float = Field(ge=0, le=100, allow_inf_nan=False, strict=True)
+    coMeasurementPhase: Literal["INITIAL", "FINAL", "UNSPECIFIED"] = "UNSPECIFIED"
+    co2MeasurementPhase: Literal["INITIAL", "FINAL", "UNSPECIFIED"] = "UNSPECIFIED"
+
+
+class ScenarioEvidenceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    material: str = Field(min_length=1, max_length=120, strict=True)
+    params: ScenarioComparisonParams | None = None
+
+    @model_validator(mode="after")
+    def same_material(self):
+        if self.params and self.material.casefold() != self.params.material.casefold():
+            raise ValueError("material and params.material must identify the same material")
+        return self
+
+@app.post("/rag/v1/scenarios/evidence")
+async def scenario_evidence(request: ScenarioEvidenceRequest):
+    material = request.material.strip()
+
+    if not material:
+        return error_response(
+            None, 400, "VALIDATION_ERROR",
+            "Material must not be blank.",
+        )
+
+    params = (
+        request.params.model_dump()
+        if request.params is not None
+        else None
+    )
+
+    try:
+        async with asyncio.timeout(RAG_REQUEST_TIMEOUT):
+            evidence = await asyncio.to_thread(find_scenario_evidence, material, params)
+            evidence["narrative"] = await explain_scenario(evidence, params)
+            return evidence
+
+    except TimeoutError:
+        return error_response(None, 504, "RAG_TIMEOUT", "The scenario source request exceeded its time limit.")
+
+    except RagError as error:
+        return error_response(
+            None, 503, "RAG_UNAVAILABLE", str(error), [{"code": error.code}]
+        )
+    except Exception as error:
+        logger.error("Unexpected scenario failure: %s", type(error).__name__)
+        return error_response(None, 500, "INTERNAL_ERROR", "An unexpected scenario source error occurred.")

@@ -3,6 +3,7 @@ import { askAiAssistant, fetchInvestigations, fetchChatCapabilities } from "../s
 import useApiResource from "../hooks/useApiResource";
 import { loadedChatScopes } from "../services/experimentData";
 import SourceCard from "./SourceCard";
+import { formatNumber, warningText } from "../services/format";
 
 export default function AiAssistantPanel() {
   const [question, setQuestion] = useState("");
@@ -39,32 +40,32 @@ export default function AiAssistantPanel() {
   }
 
   return <div className="assistant-layout"><div className="panel-card">
-    <div className="panel-card-header"><div><span className="section-eyebrow">KAYNAKLI ASİSTAN</span><h3>NASA PSI kaynakları hakkında soru sorun</h3></div></div>
-    <p>Yanıtlar backend üzerinden RAG servisinden alınır. Simülasyon değerleri bu sohbete kaynak ölçümü olarak gönderilmez.</p>
-    <p>Kaynak sorularını İngilizce sorun. Seçenekler hazır RAG indeksindeki ve backend'de yüklenmiş araştırmaları gösterir.</p>
-    {scope.loading && <p role="status">RAG kaynak kapsamı kontrol ediliyor…</p>}
-    {scope.error && <div role="alert">RAG kapsamı doğrulanamadı: {scope.error.message} Servis yeniden başlatmaları bekliyor olabilir. <button onClick={() => setRetry(retry + 1)}>Yeniden dene</button></div>}
-    {catalog.error && <div role="alert">Araştırmalar yüklenemedi: {catalog.error.message} <button onClick={() => setRetry(retry + 1)}>Yeniden dene</button></div>}
+    <div className="panel-card-header"><div><span className="section-eyebrow">SOURCE ASSISTANT</span><h3>Ask about NASA PSI sources</h3></div></div>
+    <p>Answers come from the RAG service through the backend. Simulation values are not submitted to this chat as source measurements.</p>
+    <p>Ask source questions in English. The options reflect the ready RAG index and investigations loaded in the backend.</p>
+    {scope.loading && <p role="status">Checking RAG source coverage…</p>}
+    {scope.error && <div role="alert">RAG coverage could not be verified: {scope.error.message} A service restart may be pending. <button onClick={() => setRetry(retry + 1)}>Retry</button></div>}
+    {catalog.error && <div role="alert">Investigations could not be loaded: {catalog.error.message} <button onClick={() => setRetry(retry + 1)}>Retry</button></div>}
     <form className="chat-query-form" onSubmit={(event) => { event.preventDefault(); handleAsk(); }}>
-      <select className="nasa-select" aria-label="Araştırma kapsamı" value={selectedInvFilter} onChange={(event) => setSelectedInvFilter(event.target.value)}>
-        <option value="">Tüm mevcut kaynaklar</option>
-        {supported.map((inv) => <option key={inv.investigationId} value={inv.investigationId}>{inv.investigationId} ({inv.name}) · {inv.sourceIds.length} kaynak</option>)}
+      <select className="nasa-select" aria-label="Investigation scope" value={selectedInvFilter} onChange={(event) => setSelectedInvFilter(event.target.value)}>
+        <option value="">All available sources</option>
+        {supported.map((inv) => <option key={inv.investigationId} value={inv.investigationId}>{inv.investigationId} ({inv.name}) · {formatNumber(inv.sourceIds.length)} sources</option>)}
       </select>
-      <input className="nasa-input" aria-label="Asistan sorusu" value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={4000} placeholder="Ask about original source fields in English…" />
-      <button type="submit" className="nasa-btn nasa-btn-yellow" disabled={loading || !question.trim()}>{loading ? "Yanıt bekleniyor…" : "Sor / Yeniden dene"}</button>
+      <input className="nasa-input" aria-label="Assistant question" value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={4000} placeholder="Ask about original source fields in English…" />
+      <button type="submit" className="nasa-btn nasa-btn-yellow" disabled={loading || !question.trim()}>{loading ? "Waiting for an answer…" : "Ask / Retry"}</button>
     </form>
     <div className="suggested-prompts-bar">{suggestions.map((suggestion) => <button key={suggestion} className="nasa-btn nasa-btn-xs" disabled={loading} onClick={() => handleAsk(suggestion)}>{suggestion}</button>)}</div>
-    {error && <div role="alert" className="warnings-box"><strong>Yanıt alınamadı.</strong> {error.code && `${error.code}: `}{error.message}{error.requestId && <p>İstek: {error.requestId}</p>}<p>Soru alanından yeniden deneyebilirsiniz. Önceki yanıtlar aşağıda kendi sorularıyla gösterilir.</p></div>}
-    {loading && <p role="status">RAG yanıtı bekleniyor…</p>}
-    {responseHistory.length === 0 && !loading && <p>Henüz alınmış bir yanıt yok.</p>}
+    {error && <div role="alert" className="warnings-box"><strong>No answer was received.</strong> {error.code && `${error.code}: `}{error.message}{error.requestId && <p>Request: {error.requestId}</p>}<p>Retry using the question field. Earlier answers remain attached to their original questions below.</p></div>}
+    {loading && <p role="status">Waiting for the RAG response…</p>}
+    {responseHistory.length === 0 && !loading && <p>No answers yet.</p>}
     <div className="chat-answers-feed">{responseHistory.map(({ question: query, response }, index) => <div key={`${response.requestId}:${index}`} className="chat-turn-card">
       <div className="chat-question-header"><strong>{query}</strong></div>
       <div className="chat-answer-body">
         <div className="answer-status-strip"><span>{response.status}</span><span>{response.warnings?.some((warning) => warning.code === "MODEL_OUTPUT_REJECTED")
-          ? "Model çıktısı reddedildi · Doğrudan kaynak aktarımı"
-          : `Model: ${response.modelUsed || "Çağrılmadı"} (${response.modelTier})`}</span>{response.timings?.ragTotalMs != null && <span>RAG: {response.timings.ragTotalMs} ms</span>}</div>
+          ? "Model output rejected · Direct source rendering"
+          : `Model: ${response.modelUsed || "Not called"} (${response.modelTier})`}</span>{response.timings?.ragTotalMs != null && <span>RAG: {formatNumber(response.timings.ragTotalMs)} ms</span>}</div>
         <p className="answer-text">{response.answer}</p>
-        {(response.warnings || []).map((warning, i) => <p className="warning-line" key={i}>{warning.code}: {warning.message}</p>)}
+        {(response.warnings || []).map((warning, i) => <p className="warning-line" key={i}>{warning.code}: {warningText(warning)}</p>)}
         <div className="citations-grid">{(response.sources || []).map((source) => <SourceCard key={`${source.citationId}:${source.sourceId}`} source={source} />)}</div>
       </div>
     </div>)}</div>

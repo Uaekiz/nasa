@@ -68,7 +68,7 @@ public class ChatService {
 
         String language = request.language() == null ? "en" : request.language();
         if (!"tr".equals(language) && !"en".equals(language)) {
-            throw ApiException.validation("language yalnızca tr veya en olabilir.",
+            throw ApiException.validation("language must be tr or en.",
                     List.of(Map.of("field", "language", "issue", "must be tr or en")));
         }
 
@@ -81,7 +81,7 @@ public class ChatService {
                 ExperimentRow row = experimentService.requireExperiment(experimentId);
                 if (!investigationIds.contains(row.investigationId())) {
                     throw ApiException.validation(
-                            "experimentId belirtilen araştırmaya ait değil: " + experimentId,
+                            "experimentId does not belong to the selected investigation: " + experimentId,
                             List.of(Map.of("field", "experimentIds",
                                     "issue", "not part of " + investigationIds)));
                 }
@@ -114,7 +114,7 @@ public class ChatService {
 
             if (response == null) {
                 throw new ApiException(HttpStatus.BAD_GATEWAY, "RAG_UNAVAILABLE",
-                        "RAG servisi boş yanıt döndürdü.");
+                        "The RAG service returned an empty response.");
             }
             Map<String, Object> result = new LinkedHashMap<>();
             response.forEach((key, value) -> result.put(String.valueOf(key), value));
@@ -124,18 +124,18 @@ public class ChatService {
             throw exception;
         } catch (ResourceAccessException exception) {
             if (isTimeout(exception)) {
-                log.warn("RAG isteği zaman aşımına uğradı (requestId={})", requestId);
+                log.warn("The RAG request timed out (requestId={})", requestId);
                 throw new ApiException(HttpStatus.GATEWAY_TIMEOUT, "RAG_TIMEOUT",
-                        "RAG servisi zamanında yanıt vermedi.");
+                        "The RAG service timed out.");
             }
-            log.warn("RAG servisine ulaşılamadı (requestId={}): {}", requestId,
+            log.warn("The RAG service could not be reached (requestId={}): {}", requestId,
                     exception.getMessage());
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "RAG_UNAVAILABLE",
-                    "RAG servisi şu anda kullanılamıyor.");
+                    "The RAG service is currently unavailable.");
         } catch (Exception exception) {
-            log.error("RAG isteği başarısız (requestId={})", requestId, exception);
+            log.error("The RAG request failed (requestId={})", requestId, exception);
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "RAG_UNAVAILABLE",
-                    "RAG servisi şu anda kullanılamıyor.");
+                    "The RAG service is currently unavailable.");
         }
     }
 
@@ -171,7 +171,7 @@ public class ChatService {
                     Map<String, Object> warning = new LinkedHashMap<>();
                     warning.put("code", "DATA_EXCLUDED");
                     warning.put("message", experimentId + " / " + measurement.name()
-                            + " doğrulanmış sayısal değer olmadığı için bağlama alınmadı.");
+                            + " was excluded from the analysis context because it has no verified numerical value.");
                     warnings.add(warning);
                 }
             }

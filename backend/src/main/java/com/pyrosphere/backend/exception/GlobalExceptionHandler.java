@@ -41,7 +41,7 @@ public class GlobalExceptionHandler {
             details.add(detail);
         });
         return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR",
-                "İstek gövdesi doğrulanamadı.", details);
+                "The request body could not be validated.", details);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -55,7 +55,7 @@ public class GlobalExceptionHandler {
             details.add(detail);
         });
         return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR",
-                "İstek doğrulanamadı.", details);
+                "The request could not be validated.", details);
     }
 
     @ExceptionHandler({
@@ -66,14 +66,14 @@ public class GlobalExceptionHandler {
     })
     public ResponseEntity<ErrorResponse> handleBadRequest(Exception exception) {
         return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR",
-                "İstek parametreleri geçersiz.", List.of(detail("issue", exception.getMessage())));
+                "The request parameters are invalid.", List.of(detail("issue", exception.getMessage())));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception) {
         log.error("Beklenmeyen hata", exception);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
-                "Beklenmeyen bir sunucu hatası oluştu.", List.of());
+                "An unexpected server error occurred.", List.of());
     }
 
     private static Map<String, Object> detail(String key, Object value) {

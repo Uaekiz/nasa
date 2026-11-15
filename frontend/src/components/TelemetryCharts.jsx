@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as echarts from "echarts";
 import { NASA_PALETTE } from "../theme/nasaPalette";
+import { formatNumber } from "../services/format";
 
 /**
  * Reusable ECharts wrapper hook/component with ResizeObserver cleanup.
@@ -13,7 +14,7 @@ function EChartContainer({ option, onPointClick, height = 290 }) {
     const dom = chartDomRef.current;
     if (!dom) return;
 
-    const chart = echarts.init(dom, null, { renderer: "canvas" });
+    const chart = echarts.init(dom, null, { renderer: "canvas", locale: "EN" });
     instanceRef.current = chart;
 
     const resizeObserver = new ResizeObserver(() => {
@@ -69,6 +70,7 @@ export default function TelemetryCharts({
     backgroundColor: "transparent",
     tooltip: {
       trigger: "axis",
+      confine: true,
       backgroundColor: NASA_PALETTE.deepBlue.hex,
       borderColor: NASA_PALETTE.electricBlue.hex,
       textStyle: {
@@ -81,14 +83,15 @@ export default function TelemetryCharts({
         const idx = items[0].dataIndex;
         const pt = timelineData[idx];
         return [
-          `<strong>Zaman: ${pt.label}</strong>`,
-          `<span style="color:${NASA_PALETTE.rocketRed.hex}">●</span> Müdahalesiz Risk: <b>%${pt.riskUnmitigated}</b>`,
-          `<span style="color:${NASA_PALETTE.blueYonder.hex}">●</span> AI Önlemli Risk: <b>%${pt.riskMitigated}</b>`,
-          `O₂: <b>%${pt.oxygenPercent}</b> | Akış: <b>${pt.airflowCmS} cm/s</b> | CO: <b>${pt.coPpm} ppm</b>`,
+          `<strong>Example time: ${pt.label}</strong>`,
+          `<span style="color:${NASA_PALETTE.rocketRed.hex}">●</span> Base example score: <b>${formatNumber(pt.riskUnmitigated)} / 100</b>`,
+          `<span style="color:${NASA_PALETTE.blueYonder.hex}">●</span> Variant example score: <b>${formatNumber(pt.riskMitigated)} / 100</b>`,
+          `O₂: <b>${formatNumber(pt.oxygenPercent)}%</b> | Airflow: <b>${formatNumber(pt.airflowCmS)} cm/s</b> | CO: <b>${formatNumber(pt.coPpm)} ppm</b>`,
         ].join("<br/>");
       },
     },
     legend: {
+      type: "scroll",
       top: 0,
       right: 8,
       itemWidth: 14,
@@ -100,15 +103,18 @@ export default function TelemetryCharts({
       },
     },
     grid: {
-      left: 44,
+      left: 58,
       right: 20,
       top: 36,
-      bottom: 28,
+      bottom: 45,
     },
     xAxis: {
       type: "category",
       boundaryGap: false,
       data: timelineData.map((d) => d.label),
+      name: "Example time (s)",
+      nameLocation: "middle",
+      nameGap: 22,
       axisLine: { lineStyle: { color: "#CBD5E1" } },
       axisLabel: {
         color: NASA_PALETTE.deepBlue.hex,
@@ -120,8 +126,11 @@ export default function TelemetryCharts({
       type: "value",
       min: 0,
       max: 100,
+      name: "Score (0–100)",
+      nameLocation: "middle",
+      nameGap: 38,
       axisLabel: {
-        formatter: "%{value}",
+        formatter: (value) => formatNumber(value),
         color: NASA_PALETTE.deepBlue.hex,
         fontSize: 11,
         fontFamily: "monospace",
@@ -132,7 +141,7 @@ export default function TelemetryCharts({
     },
     series: [
       {
-        name: "Müdahalesiz Risk (%)",
+        name: "Base example score",
         type: "line",
         smooth: 0.3,
         symbol: "circle",
@@ -149,7 +158,7 @@ export default function TelemetryCharts({
         markLine: {
           symbol: ["none", "none"],
           label: {
-            formatter: "AI Müdahale (t=0)",
+            formatter: "Reference input (t=0)",
             color: NASA_PALETTE.electricBlue.hex,
             fontWeight: 700,
             fontSize: 10.5,
@@ -159,11 +168,11 @@ export default function TelemetryCharts({
             type: "dashed",
             width: 1.5,
           },
-          data: [{ xAxis: "ŞİMDİ" }],
+          data: [{ xAxis: "REFERENCE" }],
         },
       },
       {
-        name: "AI Önlemli Projeksiyon (%)",
+        name: "Variant example score",
         type: "line",
         smooth: 0.3,
         symbol: "circle",
@@ -193,14 +202,16 @@ export default function TelemetryCharts({
     backgroundColor: "transparent",
     tooltip: {
       trigger: "item",
+      confine: true,
       backgroundColor: NASA_PALETTE.deepBlue.hex,
       borderColor: NASA_PALETTE.electricBlue.hex,
       textStyle: { color: NASA_PALETTE.white.hex, fontSize: 12 },
       formatter: (p) => {
-        return `<strong>${p.seriesName}</strong><br/>Akış: <b>${p.value[0]} cm/s</b> | O₂: <b>%${p.value[1]}</b>`;
+        return `<strong>${p.seriesName}</strong><br/>Airflow: <b>${formatNumber(p.value[0])} cm/s</b> | O₂: <b>${formatNumber(p.value[1])}%</b>`;
       },
     },
     legend: {
+      type: "scroll",
       top: 0,
       right: 8,
       textStyle: {
@@ -210,14 +221,14 @@ export default function TelemetryCharts({
       },
     },
     grid: {
-      left: 46,
+      left: 62,
       right: 22,
       top: 36,
       bottom: 34,
     },
     xAxis: {
       type: "value",
-      name: "Akış Hızı (cm/s)",
+      name: "Airflow (cm/s)",
       nameLocation: "middle",
       nameGap: 22,
       min: 0,
@@ -228,12 +239,14 @@ export default function TelemetryCharts({
         fontSize: 11,
       },
       axisLine: { lineStyle: { color: "#CBD5E1" } },
-      axisLabel: { color: NASA_PALETTE.deepBlue.hex, fontFamily: "monospace" },
+      axisLabel: { formatter: (value) => formatNumber(value), color: NASA_PALETTE.deepBlue.hex, fontFamily: "monospace" },
       splitLine: { lineStyle: { color: "#E2E8F0", type: "dashed" } },
     },
     yAxis: {
       type: "value",
-      name: "O₂ (% vol)",
+      name: "O₂ (%)",
+      nameLocation: "middle",
+      nameGap: 42,
       min: 12,
       max: 38,
       nameTextStyle: {
@@ -242,7 +255,7 @@ export default function TelemetryCharts({
         fontSize: 11,
       },
       axisLabel: {
-        formatter: "%{value}",
+        formatter: (value) => `${formatNumber(value)}%`,
         color: NASA_PALETTE.deepBlue.hex,
         fontFamily: "monospace",
       },
@@ -250,7 +263,7 @@ export default function TelemetryCharts({
     },
     series: [
       {
-        name: "Aktif Simülasyon Noktası",
+        name: "Current inputs",
         type: "effectScatter",
         symbolSize: 15,
         rippleEffect: { brushType: "stroke", scale: 3.2 },
@@ -263,7 +276,7 @@ export default function TelemetryCharts({
         },
       },
       {
-        name: "Model Hedefi",
+        name: "Model variant input",
         type: "scatter",
         symbol: "diamond",
         symbolSize: 15,
@@ -279,9 +292,9 @@ export default function TelemetryCharts({
 
   // 2B. ECharts Option: Risk Factor Weights & Step-Down Mitigation Bar Chart
   const factorCategories = [
-    "Mevcut Yangın İhtimali",
+    "Current model score",
     ...recommendations.slice(0, 3).map((r) => r.category),
-    "Tüm AI Önerileri Sonrası",
+    "Combined model variant",
   ];
   const factorValues = [
     baseline.probability,
@@ -293,26 +306,30 @@ export default function TelemetryCharts({
     backgroundColor: "transparent",
     tooltip: {
       trigger: "axis",
+      confine: true,
       axisPointer: { type: "shadow" },
       backgroundColor: NASA_PALETTE.deepBlue.hex,
       textStyle: { color: NASA_PALETTE.white.hex, fontSize: 12 },
       formatter: (items) => {
         const it = items[0];
-        return `<strong>${it.name}</strong><br/>Yangın İhtimali: <b>%${it.value}</b>`;
+        return `<strong>${it.name}</strong><br/>Illustrative score: <b>${formatNumber(it.value)} / 100</b>`;
       },
     },
     grid: {
       left: 165,
       right: 36,
       top: 18,
-      bottom: 28,
+      bottom: 45,
     },
     xAxis: {
       type: "value",
       min: 0,
       max: 100,
+      name: "Score (0–100)",
+      nameLocation: "middle",
+      nameGap: 24,
       axisLabel: {
-        formatter: "%{value}",
+        formatter: (value) => formatNumber(value),
         color: NASA_PALETTE.deepBlue.hex,
         fontFamily: "monospace",
       },
@@ -327,11 +344,13 @@ export default function TelemetryCharts({
         color: NASA_PALETTE.deepBlue.hex,
         fontSize: 11,
         fontWeight: 600,
+        width: 145,
+        overflow: "break",
       },
     },
     series: [
       {
-        name: "Yangın İhtimali (%)",
+        name: "Illustrative score (0–100)",
         type: "bar",
         barWidth: 18,
         data: factorValues.map((val, idx) => ({
@@ -349,7 +368,7 @@ export default function TelemetryCharts({
         label: {
           show: true,
           position: "right",
-          formatter: "%{c}",
+          formatter: ({ value }) => formatNumber(value),
           color: NASA_PALETTE.deepBlue.hex,
           fontWeight: 700,
           fontFamily: "monospace",
@@ -365,16 +384,17 @@ export default function TelemetryCharts({
         <div className="chart-panel-header">
           <div>
             <span className="section-eyebrow">
-              SİMÜLASYON // ZAMAN SERİSİ PROJEKSİYONU
+              ILLUSTRATIVE MODEL // EXAMPLE CURVES
             </span>
-            <h4>Müdahalesiz Seyir vs. AI Önlemleri Sonrası Yangın İhtimali</h4>
+            <h4>Example model score curves</h4>
           </div>
           <span className="chart-badge-pill">
-            Hedef Kazanç: -%{mitigationPlan.totalReductionDelta}
+            Variant difference: {formatNumber(mitigationPlan.totalReductionDelta)} points
           </span>
         </div>
 
         <EChartContainer option={timelineOption} height={275} />
+        <p className="chart-context-note">Both curves are generated by the local example model on an arbitrary time axis. They are not sensor history, a recorded intervention, or a validated future forecast. Scores use a 0–100 scale; differences are points.</p>
       </div>
 
       {/* CHART 2: ECHARTS PHASE DIAGRAM OR MITIGATION WATERFALL */}
@@ -382,12 +402,12 @@ export default function TelemetryCharts({
         <div className="chart-panel-header">
           <div>
             <span className="section-eyebrow">
-              ECHARTS // YANICILIK ZARFI & ÖNLEM ETKİ ANALİZİ
+              ILLUSTRATIVE INPUTS & MODEL VARIANTS
             </span>
             <h4>
               {rightChartMode === "phase"
-                ? "Simülasyon Koşulları (O₂ % vs. Hava Akışı)"
-                : "AI Önlemlerinin Kademeli Risk Düşürme Etkisi"}
+                ? "Scenario inputs (oxygen and airflow)"
+                : "Illustrative variant scores"}
             </h4>
           </div>
 
@@ -399,7 +419,7 @@ export default function TelemetryCharts({
               }`}
               onClick={() => setRightChartMode("phase")}
             >
-              Faz Haritası
+              Inputs
             </button>
             <button
               type="button"
@@ -408,7 +428,7 @@ export default function TelemetryCharts({
               }`}
               onClick={() => setRightChartMode("factors")}
             >
-              Önlem Etkisi
+              Model variants
             </button>
           </div>
         </div>
@@ -421,6 +441,7 @@ export default function TelemetryCharts({
         ) : (
           <EChartContainer option={mitigationBarOption} height={275} />
         )}
+        <p className="chart-context-note">The variant uses existing model parameter changes for illustration. No preferred operating condition, measured improvement, or safety threshold is established.</p>
       </div>
     </div>
   );

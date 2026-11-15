@@ -47,7 +47,7 @@ public class CatalogService {
                 .single();
         if (!exists) {
             throw ApiException.notFound("INVESTIGATION_NOT_FOUND",
-                    "İstenen araştırma bulunamadı: " + investigationId);
+                    "The requested investigation was not found: " + investigationId);
         }
     }
 
@@ -62,7 +62,7 @@ public class CatalogService {
                 .query((rs, rowNum) -> mapSource(rs))
                 .optional()
                 .orElseThrow(() -> ApiException.notFound("SOURCE_NOT_FOUND",
-                        "İstenen kaynak bulunamadı: " + sourceId));
+                        "The requested source was not found: " + sourceId));
     }
 
     public List<SourceView> findSources(List<String> sourceIds) {

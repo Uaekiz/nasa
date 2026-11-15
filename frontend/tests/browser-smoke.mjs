@@ -75,17 +75,17 @@ try {
   }
   const clickText = (text) => evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(text)})?.click()`);
   await cdp("Page.navigate", { url: base });
-  await waitFor("document.body.innerText.includes('NASA PSI Veri Tabanı')");
-  await clickText("NASA PSI Veri Tabanı");
+  await waitFor("document.body.innerText.includes('NASA PSI Catalog')");
+  await clickText("NASA PSI Catalog");
   await waitFor("document.querySelectorAll('tbody tr').length > 0");
   assert.equal(await evaluate("document.querySelectorAll('tbody input:checked').length"), 0);
   assert.ok(!requests.some((url) => /\/comparisons$|\/experiments\/PSI/.test(url)), "Initial page must not preselect comparisons or fetch details");
   for (const [inv, count] of [["PSI-25",129],["PSI-100",2],["PSI-101",109],["PSI-69",274]]) {
-    await evaluate(`(() => {const select=document.querySelector('[aria-label="Araştırma filtresi"]'); select.value=${JSON.stringify(inv)}; select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    await waitFor(`document.body.innerText.includes(${JSON.stringify(`${count} kayıt`)})`);
+    await evaluate(`(() => {const select=document.querySelector('[aria-label="Investigation filter"]'); select.value=${JSON.stringify(inv)}; select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await waitFor(`document.body.innerText.includes(${JSON.stringify(`${count} records`)})`);
     assert.ok(await evaluate(`document.querySelector('tbody tr .mono-cell').textContent.startsWith(${JSON.stringify(inv)})`));
   }
-  await clickText("Detay");
+  await clickText("Details");
   await waitFor("document.body.innerText.includes('Burning rate')");
   assert.ok(await evaluate("document.body.innerText.includes('Disruption')"), "FindingView must render value");
   assert.ok(await evaluate("document.body.innerText.includes('REQUIRES_REVIEW')"));
@@ -98,24 +98,24 @@ try {
   assert.ok(await evaluate("document.body.innerText.includes('DATA_EXCLUDED')"));
   const screenshot = await cdp("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
   if (process.env.UI_SCREENSHOT) await writeFile(process.env.UI_SCREENSHOT, Buffer.from(screenshot.data, "base64"));
-  await clickText("Sonraki");
-  await waitFor("document.body.innerText.includes('Sayfa 2 / 14')");
-  await evaluate("(() => { const input = document.querySelector('[aria-label=\"Yakıt filtresi\"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'not-a-source-fuel'); input.dispatchEvent(new Event('input', {bubbles:true})); })()");
-  await clickText("Filtrele");
-  await waitFor("document.body.innerText.includes('uygun backend deney kaydı yok')");
+  await clickText("Next");
+  await waitFor("document.body.innerText.includes('Page 2 / 14')");
+  await evaluate("(() => { const input = document.querySelector('[aria-label=\"Fuel filter\"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'not-a-source-fuel'); input.dispatchEvent(new Event('input', {bubbles:true})); })()");
+  await clickText("Filter");
+  await waitFor("document.body.innerText.includes('No experiment records match these filters')");
   console.log("UI: backend summaries, empty initial selection, lazy detail/FindingView, source download, real comparison metrics, pagination and empty filter passed");
 
   await cdp("Fetch.enable", { patterns: [{ urlPattern: "*/api/v1/*" }] });
   failPath = "/api/v1/experiments";
-  await clickText("Temizle");
+  await clickText("Clear");
   await waitFor("document.body.innerText.includes('Test API failure')");
   failPath = "/api/v1/chat";
-  await clickText("AI Bilimsel Asistan");
-  await waitFor("document.body.innerText.includes('Henüz alınmış bir yanıt yok')");
+  await clickText("Source assistant");
+  await waitFor("document.body.innerText.includes('No answers yet')");
   assert.equal(await evaluate("document.querySelectorAll('.chat-turn-card').length"), 0);
-  await evaluate("(() => { const input = document.querySelector('[aria-label=\"Asistan sorusu\"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Summarize FLEX test 70.'); input.dispatchEvent(new Event('input', {bubbles:true})); })()");
-  await clickText("Sor / Yeniden dene");
-  await waitFor("document.body.innerText.includes('Yanıt alınamadı')");
+  await evaluate("(() => { const input = document.querySelector('[aria-label=\"Assistant question\"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Summarize FLEX test 70.'); input.dispatchEvent(new Event('input', {bubbles:true})); })()");
+  await clickText("Ask / Retry");
+  await waitFor("document.body.innerText.includes('No answer was received')");
   assert.equal(await evaluate("document.querySelectorAll('.chat-turn-card').length"), 0, "Chat errors must not fabricate model answers");
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log("UI: list/API error and chat failure displayed; no fabricated model text; zero uncaught browser exceptions");

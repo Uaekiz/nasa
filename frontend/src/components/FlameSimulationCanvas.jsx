@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ThreeViewport from "./ThreeViewport";
 import { createSimulationScene } from "./scenes/createSimulationScene";
+import { formatNumber } from "../services/format";
 
-export default function FlameSimulationCanvas({ params, riskEvaluation, onApplyAllRecommendations, hasRecommendations }) {
+export default function FlameSimulationCanvas({
+  params,
+  riskEvaluation,
+  captureRef,
+}) {
   const [isRunning, setIsRunning] = useState(true);
   const livePropsRef = useRef({ params, riskEvaluation, isRunning });
   useEffect(() => { livePropsRef.current = { params, riskEvaluation, isRunning }; }, [params, riskEvaluation, isRunning]);
@@ -12,13 +17,13 @@ export default function FlameSimulationCanvas({ params, riskEvaluation, onApplyA
       <div className="panel-card-header">
         <div>
           <span className="section-eyebrow">
-            THREE.JS 3B YANMA VE HAVA AKIŞI SİMÜLASYONU
+            ILLUSTRATIVE 3D SCENE
           </span>
           <h3>
-            Mikroçekim Alev Morfolojisi ({params.material} //{" "}
+            Illustrative specimen and flame model ({params.material} //{" "}
             {params.flowDirection === "CONCURRENT"
-              ? "Aynı Yönlü Akış"
-              : "Ters Yönlü Akış"}
+              ? "Concurrent flow"
+              : "Opposed flow"}
             )
           </h3>
         </div>
@@ -29,35 +34,31 @@ export default function FlameSimulationCanvas({ params, riskEvaluation, onApplyA
             className="nasa-btn nasa-btn-xs"
             onClick={() => setIsRunning((r) => !r)}
           >
-            {isRunning ? "⏸ Duraklat" : "▶ Oynat"}
+            {isRunning ? "⏸ Pause" : "▶ Play"}
           </button>
 
-          {hasRecommendations && (
-            <button
-              type="button"
-              className="nasa-btn nasa-btn-accent nasa-btn-xs"
-              onClick={onApplyAllRecommendations}
-            >
-              ★ AI Önlemlerini Simüle Et
-            </button>
-          )}
         </div>
       </div>
 
       {/* 3D WebGL Viewport with HUD Overlay */}
-      <ThreeViewport createScene={createScene} animated label="Ana simülasyon 3B sahnesi">
+      <ThreeViewport
+  createScene={createScene}
+  animated
+  label="Main illustrative 3D scene"
+  captureRef={captureRef}
+>
         {/* Minimalist HUD Overlay inside 3D Viewport */}
         <div className="sim-hud-top-left">
           <span className="hud-tag">
-            REJİM: <strong>{riskEvaluation.flameRegime}</strong>
+            MODEL REGIME: <strong>{riskEvaluation.flameRegime}</strong>
           </span>
           <span className="hud-tag">
-            YAYILIM: <strong>{riskEvaluation.metrics.predictedSpreadRateMmS} mm/s</strong>
+            MODEL SPREAD: <strong>{formatNumber(riskEvaluation.metrics.predictedSpreadRateMmS)} mm/s</strong>
           </span>
         </div>
 
         <div className="sim-hud-bottom-right">
-          <span>3B Sahne: Döndürmek için sürükleyin</span>
+          <span>Drag to rotate the 3D scene</span>
         </div>
       </ThreeViewport>
 
@@ -66,7 +67,9 @@ export default function FlameSimulationCanvas({ params, riskEvaluation, onApplyA
           className="regime-indicator-bar"
           style={{ background: riskEvaluation.riskColor }}
         />
-        <p>{riskEvaluation.regimeDescription}</p>
+        <p>
+  Illustrative 3D view. Flame shape and motion come from demo formulas; this is not experiment footage or a validated physical prediction.
+</p>
       </div>
     </div>
   );

@@ -21,16 +21,16 @@ export default async function runScenarios({ cdp, evaluate, waitFor, clickText, 
   await waitFor("document.querySelector('.sim-card canvas')");
   await delay(300);
   assert.ok(await evaluate("window.__raf.size > 0"), "Main simulation still animates");
-  await clickText("⏸ Duraklat");
-  assert.ok(await evaluate("document.body.innerText.includes('▶ Oynat')"));
-  await clickText("▶ Oynat");
-  await clickText("NASA PSI Veri Tabanı");
+  await clickText("⏸ Pause");
+  assert.ok(await evaluate("document.body.innerText.includes('▶ Play')"));
+  await clickText("▶ Play");
+  await clickText("NASA PSI Catalog");
   await waitFor("document.querySelectorAll('tbody tr').length > 0");
   await delay(200);
   assert.equal(await evaluate("window.__raf.size"), 0, "Main simulation RAF is cleaned on unmount");
   const filter = async (inv, count) => {
-    await evaluate(`(()=>{const s=document.querySelector('[aria-label="Araştırma filtresi"]');s.value=${JSON.stringify(inv)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    await waitFor(`document.body.innerText.includes('${count} kayıt')`);
+    await evaluate(`(()=>{const s=document.querySelector('[aria-label="Investigation filter"]');s.value=${JSON.stringify(inv)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await waitFor(`document.body.innerText.includes('${count} records')`);
   };
   const open = async (index=0) => {
     await evaluate(`document.querySelectorAll('tbody tr')[${index}].querySelector('button').click()`);
@@ -46,7 +46,7 @@ export default async function runScenarios({ cdp, evaluate, waitFor, clickText, 
   };
   await filter("PSI-100",2); await open(); await assertView("box",true);
   assert.ok(await evaluate("document.querySelector('.experiment-source-view').innerText.includes('30 cm/s')"));
-  assert.ok(await evaluate("document.querySelector('.detail-inspector-card').innerText.includes('Kaynakta belirtilmemiş')"));
+  assert.ok(await evaluate("document.querySelector('.detail-inspector-card').innerText.includes('Not reported in source')"));
   await evaluate("document.querySelector('.experiment-source-view canvas').scrollIntoView({block:'center'})");
   const image = async () => {
     // Capture the fixed viewport first: captureBeyondViewport with a clip can
@@ -61,10 +61,10 @@ export default async function runScenarios({ cdp, evaluate, waitFor, clickText, 
     return a.reduce((sum,value,i)=>sum+Math.abs(value-b[i]),0)/a.length;
   })()`);
   const iso = await image();
-  await evaluate("document.querySelector('.experiment-source-view [aria-label=Yakınlaştır]').click()");
+  await evaluate("document.querySelector('.experiment-source-view [aria-label=Zoom in]').click()");
   await delay(200);
   assert.ok(await pixelDistance(await image(), iso) > 0.2, "Zoom changes rendered projection");
-  await evaluate("[...document.querySelectorAll('.experiment-source-view button')].find(b=>b.textContent==='Görünümü sıfırla').click()");
+  await evaluate("[...document.querySelectorAll('.experiment-source-view button')].find(b=>b.textContent==='Reset view').click()");
   await delay(200);
   const resetImage = await image();
   if (process.env.UI_SCREENSHOT) {
@@ -92,8 +92,8 @@ export default async function runScenarios({ cdp, evaluate, waitFor, clickText, 
   await cdp("Fetch.enable",{patterns:[{urlPattern:"*/api/v1/*"}]});
   const lost = await evaluate("window.__contextsLost");
   await filter("PSI-101",109); await open(1); await assertView("unknown",false);
-  assert.ok(await evaluate("document.querySelector('tbody tr:nth-child(2)').innerText.includes('22-Jul (yıl kaynakta yok)')"));
-  assert.ok(await evaluate("document.querySelector('.detail-inspector-card').innerText.includes('22-Jul (yıl kaynakta yok)')"));
+  assert.ok(await evaluate("document.querySelector('tbody tr:nth-child(2)').innerText.includes('22-Jul (year not provided in source)')"));
+  assert.ok(await evaluate("document.querySelector('.detail-inspector-card').innerText.includes('22-Jul (year not provided in source)')"));
   assert.ok(!await evaluate("document.querySelector('.experiment-source-view').innerText.includes('30 cm/s')"),"Previous experiment speed cleared");
   assert.ok(await evaluate("window.__contextsLost") > lost,"Previous GPU context released");
   await filter("PSI-69",274); await open(); await assertView("droplet",false);
@@ -112,8 +112,8 @@ export default async function runScenarios({ cdp, evaluate, waitFor, clickText, 
   const currentId=await evaluate("document.querySelector('tbody tr .mono-cell').textContent");
   responseOverrides.set(base+"/api/v1/experiments/"+encodeURIComponent(currentId),missingDetail);
   await filter("PSI-100",2); await filter("PSI-69",274); await open();
-  await waitFor("document.querySelector('.experiment-source-view')?.innerText.includes('Damlacık simgesi ölçekli değildir')");
-  assert.ok(await evaluate("document.querySelector('.experiment-source-view').innerText.includes('Damlacık simgesi ölçekli değildir')"));
+  await waitFor("document.querySelector('.experiment-source-view')?.innerText.includes('The droplet symbol is not to scale')");
+  assert.ok(await evaluate("document.querySelector('.experiment-source-view').innerText.includes('The droplet symbol is not to scale')"));
   responseOverrides.delete(base+"/api/v1/experiments/"+encodeURIComponent(currentId));
   await filter("PSI-25",129); await open(); await assertView("width",false);
   assert.ok(await evaluate("document.querySelector('.experiment-source-view').innerText.includes('100 micron PMMA film')"));
@@ -133,27 +133,27 @@ export default async function runScenarios({ cdp, evaluate, waitFor, clickText, 
   if(process.env.UI_SCREENSHOT) await writeFile(process.env.UI_SCREENSHOT,Buffer.from(shot.data,"base64"));
   await evaluate("window.__disableWebGL=true");
   await filter("PSI-100",2);
-  await clickText("Detay");
+  await clickText("Details");
   await waitFor("!!document.querySelector('.webgl-fallback')");
   assert.ok(await evaluate("document.querySelector('.webgl-fallback').innerText.includes('WebGL')"));
   assert.ok(await evaluate("document.querySelector('.experiment-source-view').innerText.includes('940 mm')"));
   assert.equal(await evaluate("document.querySelectorAll('.experiment-source-view canvas').length"),0);
   await evaluate("window.__disableWebGL=false");
-  await clickText("Simülasyon & Analiz");
+  await clickText("Scenario workspace");
   await waitFor("document.querySelector('.sim-card canvas')");
-  assert.ok(await evaluate("document.body.innerText.includes('Mikroçekim Alev Morfolojisi')"));
+  assert.ok(await evaluate("document.body.innerText.includes('Illustrative specimen and flame model')"));
   assert.ok(await evaluate("window.__raf.size>0"));
   // Use an actual ASGI response produced by the explicit rejected-generation
   // check. This fixture tests honest metadata rendering, not live generation.
   const fallbackReport = JSON.parse(await readFile(new URL("../../rag-service/.local/nasa-provenance/source-fallback-checks.json", import.meta.url), "utf8"));
   responseOverrides.set(base+"/api/v1/chat", fallbackReport.cases[0].response);
-  await clickText("AI Bilimsel Asistan");
-  await waitFor("!!document.querySelector('[aria-label=\"Asistan sorusu\"]')");
-  await evaluate("(()=>{const input=document.querySelector('[aria-label=\"Asistan sorusu\"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Summarize FLEX test 70.');input.dispatchEvent(new Event('input',{bubbles:true}));})()");
-  await clickText("Sor / Yeniden dene");
-  await waitFor("document.body.innerText.includes('Model çıktısı reddedildi')");
+  await clickText("Source assistant");
+  await waitFor("!!document.querySelector('[aria-label=\"Assistant question\"]')");
+  await evaluate("(()=>{const input=document.querySelector('[aria-label=\"Assistant question\"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Summarize FLEX test 70.');input.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await clickText("Ask / Retry");
+  await waitFor("document.body.innerText.includes('Model output rejected')");
   assert.ok(await evaluate("document.querySelector('.answer-text').innerText.includes('reported burn time was 1.6 s. [S1]')"));
-  assert.ok(!await evaluate("document.querySelector('.answer-status-strip').innerText.includes('Çağrılmadı')"));
+  assert.ok(!await evaluate("document.querySelector('.answer-status-strip').innerText.includes('Not called')"));
   assert.equal(errors.length,0,errors.join("\n"));
   console.log("PASS: main simulation/pause, dimensions/flow, SAME-R partial dates, FLEX full dates/missing diameter, BASS width/rod, source switching, rotate/zoom/reset, responsive canvas, WebGL fallback, RAF/context cleanup.");
   console.log("dateRaw summaries were test-only fixtures from actual detail responses; production summary DTO requires backend restart.");

@@ -45,11 +45,11 @@ public class ExperimentService {
 
     public ExperimentPage list(String investigationId, String fuel, int page, int size) {
         if (page < 0) {
-            throw ApiException.validation("page 0 veya daha büyük olmalıdır.",
+            throw ApiException.validation("page must be zero or greater.",
                     List.of(Map.of("field", "page", "issue", "must be >= 0")));
         }
         if (size < 1 || size > 100) {
-            throw ApiException.validation("size 1 ile 100 arasında olmalıdır.",
+            throw ApiException.validation("size must be between 1 and 100.",
                     List.of(Map.of("field", "size", "issue", "must be between 1 and 100")));
         }
 
@@ -114,7 +114,7 @@ public class ExperimentService {
                         rs.getString("reported_outcome")))
                 .optional()
                 .orElseThrow(() -> ApiException.notFound("EXPERIMENT_NOT_FOUND",
-                        "İstenen test bulunamadı: " + experimentId));
+                        "The requested experiment was not found: " + experimentId));
     }
 
     public ExperimentDetail detail(String experimentId) {

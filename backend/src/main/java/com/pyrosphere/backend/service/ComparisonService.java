@@ -46,7 +46,7 @@ public class ComparisonService {
     public ComparisonResponse compare(List<String> experimentIds) {
         if (experimentIds == null || experimentIds.size() < 2 || experimentIds.size() > 3) {
             throw ApiException.validation(
-                    "Karşılaştırma için 2 veya 3 experimentId gönderilmelidir.",
+                    "Provide 2 or 3 experimentId values for comparison.",
                     List.of(Map.of("field", "experimentIds",
                             "issue", "size must be 2 or 3, received "
                                     + (experimentIds == null ? 0 : experimentIds.size()))));
@@ -54,11 +54,11 @@ public class ComparisonService {
         Set<String> unique = new LinkedHashSet<>();
         for (String id : experimentIds) {
             if (id == null || id.isBlank()) {
-                throw ApiException.validation("experimentId boş olamaz.",
+                throw ApiException.validation("experimentId must not be blank.",
                         List.of(Map.of("field", "experimentIds", "issue", "blank identifier")));
             }
             if (!unique.add(id)) {
-                throw ApiException.validation("Aynı experimentId birden fazla gönderilemez.",
+                throw ApiException.validation("The same experimentId must not be supplied more than once.",
                         List.of(Map.of("field", "experimentIds", "issue", "duplicate " + id)));
             }
         }
@@ -92,8 +92,8 @@ public class ComparisonService {
                         warnings.add(new WarningView(
                                 "DATA_EXCLUDED",
                                 experiment.experimentId() + " / " + measurement.name()
-                                        + " sayısal karşılaştırmaya katılmadı. Durum: "
-                                        + measurement.qualityStatus() + ", ham değer: '"
+                                        + " was excluded from the numerical comparison. Status: "
+                                        + measurement.qualityStatus() + ", raw value: '"
                                         + measurement.rawValue() + "'."));
                     }
                     continue;
@@ -113,7 +113,7 @@ public class ComparisonService {
                 if (warningKeys.add(key)) {
                     warnings.add(new WarningView("NO_NUMERIC_MEASUREMENTS",
                             experiment.experimentId()
-                                    + " kaynağında sayısal ölçüm yok; yalnızca koşullar mevcut."));
+                                    + " has no numerical outcome measurements; only conditions are available."));
                 }
             }
         }
@@ -144,8 +144,8 @@ public class ComparisonService {
                     .stripTrailingZeros()
                     .doubleValue();
             String note = spread == 0d
-                    ? "Tüm doğrulanmış değerler eşit."
-                    : "Fark (max - min) = " + spread + unit + ".";
+                    ? "All verified values are equal."
+                    : "Difference (max - min) = " + spread + unit + ".";
             differences.add(new Difference(metric.name, values, note));
         }
 

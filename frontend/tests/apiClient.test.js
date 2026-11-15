@@ -1,7 +1,7 @@
 /* global global */
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { fetchInvestigations, fetchExperiments, fetchExperiment, fetchSource, fetchChatCapabilities, compareExperiments, askAiAssistant, sourceDocumentUrl } from "../src/services/apiClient.js";
+import { fetchInvestigations, fetchExperiments, fetchExperiment, fetchSource, fetchChatCapabilities, compareExperiments, askAiAssistant, sourceDocumentUrl, submitScenario } from "../src/services/apiClient.js";
 import { comparisonRows, measurementText, loadedChatScopes } from "../src/services/experimentData.js";
 
 const originalFetch = global.fetch;
@@ -20,7 +20,7 @@ test("every API operation propagates errors instead of supplying local experimen
     await assert.rejects(operation, { code: "RAG_UNAVAILABLE", requestId: "actual-request", status: 503 });
   }
   global.fetch = async () => { throw new TypeError("network"); };
-  await assert.rejects(() => askAiAssistant({ question: "test" }), /Backend API/);
+  await assert.rejects(() => askAiAssistant({ question: "test" }), /backend API/i);
 });
 
 test("summary filters, detail/source identifiers, and comparison/chat payloads follow DTOs", async () => {
@@ -35,14 +35,34 @@ test("summary filters, detail/source identifiers, and comparison/chat payloads f
   await compareExperiments(["a", "b"]);
   assert.deepEqual(JSON.parse(calls[3].options.body), { experimentIds: ["a", "b"] });
   await askAiAssistant({ question: "test", activeTelemetryParams: { fake: 42 } });
-  assert.deepEqual(JSON.parse(calls[4].options.body), { question: "test", investigationIds: [], experimentIds: [], language: "tr" });
+  assert.deepEqual(JSON.parse(calls[4].options.body), { question: "test", investigationIds: [], experimentIds: [], language: "en" });
 });
 
 test("measurement rendering preserves nulls, ranges, qualifiers and review status", () => {
   assert.equal(measurementText({ qualityStatus: "VERIFIED", qualifier: "RANGE", minValue: 1, maxValue: 3, unit: "s", value: null, startValue: null }), "1 – 3 s");
   assert.equal(measurementText({ qualityStatus: "VERIFIED", qualifier: "APPROXIMATE", value: 6, unit: "s" }), "~6 s");
-  assert.match(measurementText({ qualityStatus: "MISSING", value: null, startValue: null }), /Eksik/);
-  assert.match(measurementText({ qualityStatus: "REQUIRES_REVIEW", value: .52, unit: "mm" }), /incelemesi/);
+  assert.match(measurementText({ qualityStatus: "MISSING", value: null, startValue: null }), /Missing/);
+  assert.match(measurementText({ qualityStatus: "REQUIRES_REVIEW", value: .52, unit: "mm" }), /review/);
+});
+
+test("scenario transport keeps capture local, preserves all params and supports cancellation", async () => {
+  const params = { oxygenPercent: 21, pressureKpa: 101.3, airflowCmS: 8.5, gravityG: 0, temperatureC: 22,
+    ignitionPowerW: 10, material: "PMMA Film", flowDirection: "CONCURRENT", coPpm: 5, co2Percent: 0.1,
+    coMeasurementPhase: "UNSPECIFIED", co2MeasurementPhase: "FINAL" };
+  let call;
+  global.fetch = async (url, options) => { call = { url, options }; return response({ status: "EVIDENCE_RETRIEVED" }); };
+  await submitScenario({ capturedAt: "2026-11-15T12:00:00Z", params, imageDataUrl: "data:image/png;base64,LOCAL_ONLY" });
+  assert.equal(call.url, "/api/v1/scenario-analyses");
+  assert.deepEqual(JSON.parse(call.options.body), { capturedAt: "2026-11-15T12:00:00Z", params });
+  assert.equal(call.options.headers["Accept-Language"], "en");
+  assert.ok(!call.options.body.includes("LOCAL_ONLY"));
+  global.fetch = async (_, { signal }) => new Promise((resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new DOMException("Cancelled", "AbortError")), { once: true });
+  });
+  const controller = new AbortController();
+  const rejected = assert.rejects(submitScenario({ capturedAt: "now", params }, { signal: controller.signal }), { name: "AbortError" });
+  controller.abort();
+  await rejected;
 });
 
 test("sparse series align to experiment IDs without filling absent points with zero", () => {

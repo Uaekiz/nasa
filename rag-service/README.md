@@ -1,5 +1,13 @@
 # Multi-source upgrade (15 November 2026)
 
+The scenario workflow now validates every captured input and reports source-field
+coverage. CO and CO2 comparisons require an explicit initial/final measurement
+phase. Deterministic English observations remain available when the optional
+check-ordering model fails. Screenshots stay local and are not model inputs.
+See [FLAMESCOPE completion notes](../docs/flamescope-completion.md) and the
+[scenario API contract](../docs/api-contract-v1.md#scenario-analysis) for setup,
+scope, limitations and verification results.
+
 Source answers now use short cited English sentences after exact cell validation.
 Rejected model output falls back explicitly to original source cells with no
 successful model attribution. See [narrative/date/3D report](../docs/source-narrative-and-3d.md)

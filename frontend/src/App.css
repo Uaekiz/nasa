@@ -1361,3 +1361,54 @@
 .experiment-source-view dd { margin: 4px 0; }
 .experiment-source-view ul { padding-left: 20px; }
 .detail-inspector-card, .explorer-split-grid > .panel-card { min-width: 0; }
+.scenario-analysis-panel { min-width: 0; }
+.scenario-analysis-panel h4 { margin: 16px 0 8px; }
+.scenario-analysis-panel p, .scenario-analysis-panel li, .scenario-analysis-panel dd { overflow-wrap: anywhere; }
+.scenario-analysis-panel section { margin-top: 18px; }
+.scenario-analysis-panel details { margin: 12px 0; }
+.scenario-analysis-panel summary { cursor: pointer; line-height: 1.5; }
+.scenario-analysis-panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.scenario-analysis-panel th, .scenario-analysis-panel td { text-align: left; vertical-align: top; padding: 9px; border-bottom: 1px solid var(--border-light); overflow-wrap: anywhere; }
+.scenario-analysis-panel .scenario-inputs table { table-layout: fixed; }
+.scenario-analysis-panel .scenario-source table { table-layout: fixed; }
+.scenario-analysis-panel .scenario-source { padding: 12px; border: 1px solid var(--border-medium); border-radius: 8px; scroll-margin-top: 20px; }
+.scenario-analysis-panel .scenario-source:target { outline: 2px solid var(--nasa-neon-blue); }
+.scenario-analysis-panel .scenario-source summary { font-weight: 700; }
+.scenario-analysis-panel .scenario-preview img { width: 100%; display: block; border-radius: 8px; background: var(--nasa-deep-blue); }
+.scenario-analysis-panel .scenario-assessment { padding: 14px; background: var(--bg-accent-tint); border-radius: 8px; }
+.scenario-analysis-panel .scenario-coverage { padding: 12px; background: var(--bg-subtle); border-radius: 8px; }
+.scenario-analysis-panel .scenario-coverage li { margin-bottom: 8px; }
+.scenario-analysis-panel .scenario-alternates { padding: 8px; border-left: 3px solid var(--nasa-blue-yonder); }
+.scenario-analysis-panel .scenario-source-differences { padding: 10px; border: 1px solid var(--border-medium); border-radius: 6px; }
+.scenario-analysis-panel .scenario-citation-link { white-space: nowrap; }
+.scenario-analysis-panel .scenario-phases { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.scenario-analysis-panel .scenario-phases label { display: grid; gap: 6px; font-size: 13px; }
+.scenario-analysis-panel .scenario-phases select { width: 100%; min-width: 0; }
+.scenario-analysis-panel .nasa-btn-block { margin: 10px 0; }
+.nasa-table-wrapper { max-width: 100%; }
+.nasa-table { min-width: 650px; }
+.nasa-table td, .nasa-table th { overflow-wrap: anywhere; }
+.citation-card, .citation-meta, .chat-turn-card, .series-card { min-width: 0; overflow-wrap: anywhere; }
+.panel-card-header, .filter-controls-row { flex-wrap: wrap; }
+.measurement-top, .measurement-values { flex-wrap: wrap; }
+.measurement-values > span { min-width: 0; overflow-wrap: anywhere; }
+.sim-hud-top-left { flex-wrap: wrap; max-width: calc(100% - 24px); }
+@media (max-width: 720px) {
+  .scenario-analysis-panel .scenario-phases { grid-template-columns: 1fr; }
+  .panel-card { padding: 16px; }
+  .mission-main { padding-left: 12px; padding-right: 12px; }
+  .comparison-series-grid { grid-template-columns: minmax(0, 1fr); }
+  .filter-controls-row { min-width: 0; }
+  .filter-controls-row > input, .filter-controls-row > select { max-width: 100%; min-width: 0; }
+}
+.workspace-split-grid > *, .charts-grid-2col > *, .kpi-telemetry-grid > * { min-width: 0; max-width: 100%; }
+.sim-and-controls-col, .ai-recommendations-col { min-width: 0; }
+@media (min-width: 1201px) {
+  .scenario-analysis-panel { max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-gutter: stable; position: sticky; top: 16px; }
+}
+@media (max-width: 1200px) {
+  .workspace-split-grid, .explorer-split-grid, .charts-grid-2col { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .sliders-grid, .kpi-telemetry-grid { grid-template-columns: minmax(0, 1fr); }
+}

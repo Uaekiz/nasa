@@ -4,7 +4,13 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 // Shared by the live simulation and the static, source-only experiment view.
 // Scene factories own content; this component owns camera, WebGL and cleanup.
-export default function ThreeViewport({ createScene, animated = false, label, children }) {
+export default function ThreeViewport({
+  createScene,
+  animated = false,
+  label,
+  children,
+  captureRef,
+}) {
   const mountRef = useRef(null);
   const actionsRef = useRef(null);
   const [failure, setFailure] = useState("");
@@ -43,11 +49,15 @@ export default function ThreeViewport({ createScene, animated = false, label, ch
         renderer.domElement.remove();
       }
       actionsRef.current = null;
+
+      if (captureRef) {
+  captureRef.current = null;
+}
     };
     const contextLost = (event) => {
       event.preventDefault();
       release();
-      setFailure("WebGL bağlamı kayboldu. Kaynak parametreleri aşağıda gösteriliyor; görünümü yeniden açabilirsiniz.");
+      setFailure("The WebGL context was lost. Text and parameters remain available; reopen the view to try again.");
     };
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: animated ? "high-performance" : "low-power" });
@@ -100,24 +110,44 @@ export default function ThreeViewport({ createScene, animated = false, label, ch
       });
       observer.observe(container);
       actionsRef.current.reset();
+      if (captureRef) {
+  captureRef.current = () => {
+    if (disposed || renderer.getContext().isContextLost()) {
+      throw new Error("The 3D view is not ready for image capture.");
+    }
+
+    // Güncel sahneyi çizip görüntüyü hemen al.
+    sceneState.update?.();
+    renderer.render(scene, camera);
+
+    const image = renderer.domElement.toDataURL("image/png");
+
+    if (!image.startsWith("data:image/png;base64,")) {
+      throw new Error("The 3D image could not be created.");
+    }
+
+    return image;
+  };
+}
     } catch {
       release();
+
       // Keep source text visible even when a browser cannot create a GPU context.
-      queueMicrotask(() => setFailure("3B görünüm açılamadı. WebGL desteklenmiyor veya GPU kullanılamıyor. Kaynak parametreleri metin olarak gösteriliyor."));
+      queueMicrotask(() => setFailure("The 3D view could not open. WebGL or GPU access is unavailable. Text and parameters remain available."));
     }
     return release;
-  }, [createScene, animated, label]);
+  }, [createScene, animated, label, captureRef]);
 
   return <div className="three-viewport">
-    <div className="camera-view-group" role="group" aria-label={`${label} kontrolleri`}>
-      <button className="nasa-btn nasa-btn-xs" disabled={!!failure} onClick={() => actionsRef.current?.reset()}>Görünümü sıfırla</button>
-      <button className="nasa-btn nasa-btn-xs" disabled={!!failure} onClick={() => actionsRef.current?.side()}>Yan görünüm</button>
-      <button className="nasa-btn nasa-btn-xs" disabled={!!failure} onClick={() => actionsRef.current?.top()}>Üst görünüm</button>
-      <button className="nasa-btn nasa-btn-xs" disabled={!!failure} aria-label="Yakınlaştır" onClick={() => actionsRef.current?.zoom(0.8)}>+</button>
-      <button className="nasa-btn nasa-btn-xs" disabled={!!failure} aria-label="Uzaklaştır" onClick={() => actionsRef.current?.zoom(1.25)}>−</button>
+    <div className="camera-view-group" role="group" aria-label={`${label} controls`}>
+      <button className="nasa-btn nasa-btn-xs" disabled={!!failure} onClick={() => actionsRef.current?.reset()}>Reset view</button>
+      <button className="nasa-btn nasa-btn-xs" disabled={!!failure} onClick={() => actionsRef.current?.side()}>Side view</button>
+      <button className="nasa-btn nasa-btn-xs" disabled={!!failure} onClick={() => actionsRef.current?.top()}>Top view</button>
+      <button className="nasa-btn nasa-btn-xs" disabled={!!failure} aria-label="Zoom in" onClick={() => actionsRef.current?.zoom(0.8)}>+</button>
+      <button className="nasa-btn nasa-btn-xs" disabled={!!failure} aria-label="Zoom out" onClick={() => actionsRef.current?.zoom(1.25)}>−</button>
     </div>
     <div className="sim-canvas-wrapper">
-      <div ref={mountRef} className="three-mount-box" title="Döndürmek için sürükleyin; yakınlaştırmak için kaydırın veya iki parmak kullanın." />
+      <div ref={mountRef} className="three-mount-box" title="Drag to rotate; scroll or pinch to zoom." />
       {failure ? <p className="webgl-fallback" role="status">{failure}</p> : children}
     </div>
   </div>;

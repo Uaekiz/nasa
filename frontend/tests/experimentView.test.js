@@ -11,9 +11,9 @@ const detail = (investigationId, conditions = [], reportedFindings = []) => ({ i
 
 test("dates preserve full dates and partial SAME-R dates without generating a year", () => {
   assert.equal(experimentDate({ date: "2009-03-05", dateRaw: "3/5/2009" }), "2009-03-05");
-  assert.equal(experimentDate({ date: null, dateRaw: "22-Jul" }), "22-Jul (yıl kaynakta yok)");
-  assert.equal(experimentDate({ dateRaw: "21-Jul" }), "21-Jul (yıl kaynakta yok)");
-  for (const dateRaw of [null, "", "  ", undefined]) assert.equal(experimentDate({ dateRaw }), "Kaynakta belirtilmemiş");
+  assert.equal(experimentDate({ date: null, dateRaw: "22-Jul" }), "22-Jul (year not provided in source)");
+  assert.equal(experimentDate({ dateRaw: "21-Jul" }), "21-Jul (year not provided in source)");
+  for (const dateRaw of [null, "", "  ", undefined]) assert.equal(experimentDate({ dateRaw }), "Not reported in source");
 });
 
 test("FLEX uses only its exact initial diameter and never extinction diameter or simulation values", () => {
@@ -29,7 +29,7 @@ test("FLEX uses only its exact initial diameter and never extinction diameter or
   for (const extra of [{ qualifier: "APPROXIMATE" }, { qualityStatus: "MISSING" }, { qualityStatus: "REQUIRES_REVIEW" }, { sourceId: "unlisted" }, { value: null }]) {
     const missing = experimentViewModel(detail("PSI-69", [field("Droplet initial diameter", 1.69, "mm", extra)]));
     assert.equal(missing.diameter, null);
-    assert.match(missing.geometryNote, /ölçekli değildir/);
+    assert.match(missing.geometryNote, /not to scale/);
   }
 });
 
@@ -44,7 +44,7 @@ test("SAFFIRE preserves dimension ratios and source direction, with no burning r
     createExperimentScene(scene, model);
     assert.equal(scene.children.filter((object) => object.type === "ArrowHelper").length, 3);
     assert.equal(scene.children.find((object) => object.isMesh).geometry.parameters.height, 3.3);
-    assert.match(model.studyNote, /Yanma ölçümü/);
+    assert.match(model.studyNote, /No burning measurement/);
   }
 });
 
@@ -73,7 +73,7 @@ test("SAME-R and missing details cannot inherit another experiment's dimensions,
   assert.equal(model.flow, null); // Speed alone does not establish direction.
   assert.equal(model.dimensions, null);
   assert.equal(model.parameters.find((p) => p.label === "Inlet velocity").value, 8.1);
-  assert.match(model.studyNote, /açık alev deneyi olarak yorumlanmadı/);
+  assert.match(model.studyNote, /not treated as an open-flame/);
   const empty = experimentViewModel(detail("PSI-101"));
   assert.deepEqual(empty.parameters, []);
   assert.equal(empty.diameter, null);

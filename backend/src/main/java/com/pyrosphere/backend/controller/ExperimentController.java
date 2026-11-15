@@ -60,7 +60,7 @@ public class ExperimentController {
                 .toList();
         if (!details.isEmpty()) {
             throw ApiException.validation(
-                    "Desteklenmeyen sorgu parametresi gönderildi.", details);
+                    "An unsupported query parameter was supplied.", details);
         }
     }
 }

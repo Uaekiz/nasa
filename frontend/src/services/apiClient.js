@@ -10,30 +10,42 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { timeoutMs = 15000, ...options } = {}) {
+async function request(path, { timeoutMs = 15000, signal: externalSignal, ...options } = {}) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const abort = () => controller.abort();
+  externalSignal?.addEventListener("abort", abort, { once: true });
+  const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
   try {
+    if (externalSignal?.aborted) throw new DOMException("Request cancelled.", "AbortError");
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
-      headers: { Accept: "application/json", ...options.headers },
+      headers: { Accept: "application/json", "Accept-Language": "en", ...options.headers },
       signal: controller.signal,
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new ApiError(data?.error?.message || `API isteği başarısız (HTTP ${response.status}).`, {
+      const message = data?.error?.message;
+      const englishErrors = {
+        RAG_UNAVAILABLE: "The RAG service is unavailable. You can retry.", RAG_TIMEOUT: "The RAG service timed out. You can retry.",
+        VALIDATION_ERROR: "The request contains invalid or missing fields.", NOT_FOUND: "The requested record or source was not found.",
+        INTERNAL_ERROR: "An unexpected server error occurred.",
+      };
+      throw new ApiError(message && !/[çğıöşüİÇĞÖŞÜ]/.test(message) ? message : englishErrors[data?.error?.code] || `API request failed (HTTP ${response.status}).`, {
         code: data?.error?.code, requestId: data?.requestId, status: response.status,
       });
     }
-    if (!data) throw new ApiError("API geçerli bir JSON yanıtı döndürmedi.");
+    if (!data) throw new ApiError("The API did not return valid JSON.");
     return data;
   } catch (error) {
+    if (externalSignal?.aborted && !timedOut) throw new DOMException("Request cancelled.", "AbortError");
     if (error instanceof ApiError) throw error;
     throw new ApiError(error.name === "AbortError"
-      ? "API yanıt süresi aşıldı. Yeniden deneyebilirsiniz."
-      : "Backend API bağlantısı kurulamadı.");
+      ? "The API request timed out. You can retry."
+      : "Could not connect to the backend API.", { code: timedOut ? "API_TIMEOUT" : "API_UNAVAILABLE" });
   } finally {
     clearTimeout(timeout);
+    externalSignal?.removeEventListener("abort", abort);
   }
 }
 
@@ -86,6 +98,13 @@ export function compareExperiments(experimentIds) {
   return post("/comparisons", { experimentIds });
 }
 
-export function askAiAssistant({ question, investigationIds = [], experimentIds = [], language = "tr" }) {
+export function askAiAssistant({ question, investigationIds = [], experimentIds = [], language = "en" }) {
   return post("/chat", { question, investigationIds, experimentIds, language }, { timeoutMs: 130000 });
+}
+export function submitScenario({ capturedAt, params }, { signal } = {}) {
+  return post(
+    "/scenario-analyses",
+    { capturedAt, params },
+    { timeoutMs: 130000, signal }
+  );
 }

@@ -3,8 +3,8 @@
 export const MATERIALS_CATALOG = {
   "PMMA Film": {
     id: "PMMA Film",
-    label: "PMMA Akrilik Film (100–400 μm)",
-    category: "Polimer / Katı",
+    label: "PMMA film",
+    category: "Illustrative solid profile",
     loi: 16.8, // Limiting Oxygen Index (% O2 in 0g low flow)
     baseFlammability: 0.78,
     optimalFlowCmS: 5.5,
@@ -12,12 +12,12 @@ export const MATERIALS_CATALOG = {
     ignitionPowerThresholdW: 45,
     coYieldFactor: 1.35,
     description:
-      "BASS-II (PSI-25) deneylerinde kullanılan standart referans akrilik polimer. Erime kabarcıkları (bubbling) ve düşük akışta (2–8 cm/s) kararlı alev yayılımı gösterir.",
+      "Illustrative material profile. Its model coefficients are demonstration inputs, not measured source data.",
   },
   "SIBAL Fabric": {
     id: "SIBAL Fabric",
-    label: "SIBAL Kumaş (%75 Pamuk / %25 Fiberglas)",
-    category: "Kompozit Tekstil",
+    label: "SIBAL fabric",
+    category: "Illustrative solid profile",
     loi: 17.5,
     baseFlammability: 0.84,
     optimalFlowCmS: 18.0,
@@ -25,12 +25,12 @@ export const MATERIALS_CATALOG = {
     ignitionPowerThresholdW: 60,
     coYieldFactor: 1.5,
     description:
-      "SAFFIRE I/II/III (PSI-98/99/100) ve BASS deneylerinin ana test kumaşı. Fiberglas ağ kül iskeletini tutarken pamuk bileşeni 20 cm/s akışta hızla yayılır.",
+      "Illustrative material profile. Its model coefficients are demonstration inputs, not measured source data.",
   },
   Silicone: {
     id: "Silicone",
-    label: "Silikon Membran (0.27–1.03 mm)",
-    category: "Elastomer",
+    label: "Silicone",
+    category: "Illustrative solid profile",
     loi: 20.8,
     baseFlammability: 0.42,
     optimalFlowCmS: 15.0,
@@ -38,12 +38,12 @@ export const MATERIALS_CATALOG = {
     ignitionPowerThresholdW: 75,
     coYieldFactor: 0.85,
     description:
-      "SAFFIRE-II (PSI-99) testlerinde 1-g'de tam yanma gösterirken, mikroçekimde (μ-g) 21.5–22.1% O₂ altında 'Insignificant' (ihmal edilebilir) yayılım göstermiştir.",
+      "Illustrative material profile. Its model coefficients are demonstration inputs, not measured source data.",
   },
   Methanol: {
     id: "Methanol",
-    label: "Metanol Sıvı Damlacık (1.6–2.5 mm)",
-    category: "Sıvı Yakıt (FLEX)",
+    label: "Methanol droplet",
+    category: "Illustrative liquid profile",
     loi: 15.5,
     baseFlammability: 0.88,
     optimalFlowCmS: 2.0,
@@ -51,12 +51,12 @@ export const MATERIALS_CATALOG = {
     ignitionPowerThresholdW: 25,
     coYieldFactor: 0.9,
     description:
-      "FLEX (PSI-69) deneylerinde küresel mavi difüzyon alevi oluşturur; su buharı emilimiyle sönme çapı (0.89–0.94 mm) ve soğuk alev davranışı sergiler.",
+      "Illustrative material profile. Its model coefficients are demonstration inputs, not measured source data.",
   },
   Heptane: {
     id: "Heptane",
-    label: "n-Heptan Sıvı Damlacık",
-    category: "Hidrokarbon Sıvı (FLEX-2)",
+    label: "Heptane droplet",
+    category: "Illustrative liquid profile",
     loi: 15.0,
     baseFlammability: 0.93,
     optimalFlowCmS: 3.0,
@@ -64,12 +64,12 @@ export const MATERIALS_CATALOG = {
     ignitionPowerThresholdW: 22,
     coYieldFactor: 1.65,
     description:
-      "FLEX-2 (PSI-68) kapsamında incelenen yüksek yanıcılığa sahip hidrokarbon; mikroçekimde kurum kabuğu (soot shell) ve radyatif sönme gösterir.",
+      "Illustrative material profile. Its model coefficients are demonstration inputs, not measured source data.",
   },
   "Nomex III": {
     id: "Nomex III",
-    label: "Nomex III (Ateşe Dayanıklı Aramid)",
-    category: "Yangın Bariyer Tekstili",
+    label: "Nomex III",
+    category: "Illustrative solid profile",
     loi: 26.5,
     baseFlammability: 0.19,
     optimalFlowCmS: 12.0,
@@ -77,12 +77,12 @@ export const MATERIALS_CATALOG = {
     ignitionPowerThresholdW: 140,
     coYieldFactor: 0.55,
     description:
-      "BASS-II (F1/F2) ve SAFFIRE-II (Test 2-7) deneylerinde yangın bariyeri olarak test edilmiştir; %22.1 O₂ altında PMMA tamamen yanarken Nomex tutuşmayı durdurmuştur.",
+      "Illustrative material profile. Its model coefficients are demonstration inputs, not measured source data.",
   },
   Kapton: {
     id: "Kapton",
-    label: "Kapton Poliimid Film (Kablo Yalıtımı)",
-    category: "Elektrik Yalıtımı (SAME-R)",
+    label: "Kapton",
+    category: "Illustrative solid profile",
     loi: 28.0,
     baseFlammability: 0.24,
     optimalFlowCmS: 8.1,
@@ -90,12 +90,12 @@ export const MATERIALS_CATALOG = {
     ignitionPowerThresholdW: 150,
     coYieldFactor: 0.75,
     description:
-      "SAME-R (PSI-101) deneylerinde aşırı akım/termal piroliz duman partikül büyümesi (Rt/R0 = 1.38) için incelenen yüksek dirençli uzay aracı kablo izolasyonu.",
+      "Illustrative material profile. Its model coefficients are demonstration inputs, not measured source data.",
   },
   Teflon: {
     id: "Teflon",
-    label: "PTFE Teflon Yalıtım",
-    category: "Floropolimer (SAME)",
+    label: "Teflon",
+    category: "Illustrative solid profile",
     loi: 29.5,
     baseFlammability: 0.16,
     optimalFlowCmS: 7.5,
@@ -103,17 +103,17 @@ export const MATERIALS_CATALOG = {
     ignitionPowerThresholdW: 165,
     coYieldFactor: 0.5,
     description:
-      "SAME (PSI-102) kapsamında 5–10 cm/s akışta kütle kaybı hızı (1–2 mg/dk) ve erken duman aerosol imzası ölçülen düşük yanıcılıklı malzeme.",
+      "Illustrative material profile. Its model coefficients are demonstration inputs, not measured source data.",
   },
 };
 
 export const MISSION_PRESETS = [
   {
     id: "iss-nominal",
-    name: "Örnek kabin senaryosu (0g)",
+    name: "Example cabin inputs (0 g)",
     badge: "0.00g // 101.3 kPa // 21.0% O₂",
     description:
-      "Simülatör için örnek kabin koşulları; bir deney kaydından alınmamıştır.",
+      "An illustrative input preset for the local model; not an experiment record or a validated operating condition.",
     params: {
       oxygenPercent: 21.0,
       pressureKpa: 101.3,
@@ -129,10 +129,10 @@ export const MISSION_PRESETS = [
   },
   {
     id: "lunar-artemis",
-    name: "Ay (Lunar Artemis) Habitatı (Yüksek O₂ Risk Senaryosu)",
+    name: "Example partial-gravity inputs (0.16 g)",
     badge: "0.16g // 56.5 kPa // 34.0% O₂",
     description:
-      "Dekompresyon hastalığını (bends) önlemek için kullanılan düşük basınçlı / yüksek oksijenli (%34 O₂) Ay üssü atmosferi. Alev yayılım hızı kritik seviyededir.",
+      "An illustrative input preset for the local model; not an experiment record or a validated operating condition.",
     params: {
       oxygenPercent: 34.0,
       pressureKpa: 56.5,
@@ -148,10 +148,10 @@ export const MISSION_PRESETS = [
   },
   {
     id: "cygnus-saffire",
-    name: "Örnek yüksek akış senaryosu (0g)",
+    name: "Example higher-flow inputs (0 g)",
     badge: "0.00g // 101.3 kPa // 21.6% O₂ // 20 cm/s",
     description:
-      "Simülatör için örnek yüksek akış ve ateşleme girdileri; kaynak ölçümü değildir.",
+      "An illustrative input preset for the local model; not an experiment record or a validated operating condition.",
     params: {
       oxygenPercent: 21.6,
       pressureKpa: 101.3,
@@ -167,10 +167,10 @@ export const MISSION_PRESETS = [
   },
   {
     id: "bass2-quenching",
-    name: "Örnek düşük oksijen senaryosu (0g)",
+    name: "Example lower-oxygen inputs (0 g)",
     badge: "0.00g // 15.0% O₂ // 2.0 cm/s",
     description:
-      "Simülatör için örnek düşük oksijen ve düşük akış girdileri; kaynak ölçümü değildir.",
+      "An illustrative input preset for the local model; not an experiment record or a validated operating condition.",
     params: {
       oxygenPercent: 15.0,
       pressureKpa: 101.3,
@@ -186,10 +186,10 @@ export const MISSION_PRESETS = [
   },
   {
     id: "mars-transit",
-    name: "Mars Transit Aracı (0.38g Kısmi Çekim)",
+    name: "Example partial-gravity inputs (0.38 g)",
     badge: "0.38g // 70.0 kPa // 26.5% O₂",
     description:
-      "Kısmi yerçekimi kaynaklı doğal kaldırma kuvveti (buoyancy) ile zorlanmış havalandırmanın birleştiği yüksek riskli hibrit konveksiyon rejimi.",
+      "An illustrative input preset for the local model; not an experiment record or a validated operating condition.",
     params: {
       oxygenPercent: 26.5,
       pressureKpa: 70.0,

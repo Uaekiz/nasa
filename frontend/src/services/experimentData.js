@@ -1,22 +1,24 @@
+import { formatNumber } from "./format.js";
+
 export function measurementText(m) {
   const unit = m.unit ? ` ${m.unit}` : "";
-  if (m.qualityStatus === "MISSING") return `Eksik (${m.missingReason || "MISSING"})`;
-  if (m.qualityStatus !== "VERIFIED") return "Birim/değer incelemesi gerekiyor";
+  if (m.qualityStatus === "MISSING") return `Missing (${m.missingReason || "MISSING"})`;
+  if (m.qualityStatus !== "VERIFIED") return "Unit/value review required";
   if (m.qualifier === "CHANGING" && m.startValue != null && m.endValue != null) {
-    return `${m.startValue} → ${m.endValue}${unit}`;
+    return `${formatNumber(m.startValue)} → ${formatNumber(m.endValue)}${unit}`;
   }
   if (m.qualifier === "RANGE" && m.minValue != null && m.maxValue != null) {
-    return `${m.minValue} – ${m.maxValue}${unit}`;
+    return `${formatNumber(m.minValue)} – ${formatNumber(m.maxValue)}${unit}`;
   }
   const prefix = { APPROXIMATE: "~", GREATER_THAN: ">", LESS_THAN: "<" }[m.qualifier] || "";
-  return m.value != null ? `${prefix}${m.value}${unit}` : "Normalize değer yok";
+  return m.value != null ? `${prefix}${formatNumber(m.value)}${unit}` : "No normalized value";
 }
 
 export function experimentDate({ date, dateRaw }) {
   if (date) return date;
   const raw = dateRaw?.trim();
-  if (!raw) return "Kaynakta belirtilmemiş";
-  return /\b\d{4}\b/.test(raw) ? `${raw} (kaynak tarih biçimi)` : `${raw} (yıl kaynakta yok)`;
+  if (!raw) return "Not reported in source";
+  return /\b\d{4}\b/.test(raw) ? `${raw} (original date format)` : `${raw} (year not provided in source)`;
 }
 
 export function comparisonRows(series, experimentIds) {
